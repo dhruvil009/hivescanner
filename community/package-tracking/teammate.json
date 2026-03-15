@@ -1,0 +1,11 @@
+{
+  "name": "package-tracking",
+  "display_name": "Package Tracking",
+  "version": "1.0.0",
+  "description": "Monitors Gmail for shipping updates and delivery notifications",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {"enabled": false, "token_env": "GOOGLE_ACCESS_TOKEN", "max_items": 10, "search_query": "subject:(shipped OR tracking OR delivery) newer_than:1d"},
+  "requirements": {"cli_tools": []},
+  "qpm_budget": 1
+}
