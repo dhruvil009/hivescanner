@@ -96,6 +96,8 @@ class TestListTeammates:
         assert "calendar" in builtin_names
         assert "gchat" in builtin_names
         assert "whatsapp" in builtin_names
+        assert "email" in builtin_names
+        assert "weather" in builtin_names
 
     def test_lists_hired(self, tmp_hivescanner, community_dir):
         config = {"version": 1, "scanners": {}}
