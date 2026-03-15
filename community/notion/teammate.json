@@ -1,0 +1,19 @@
+{
+  "name": "notion",
+  "display_name": "Notion",
+  "version": "1.0.0",
+  "description": "Monitors Notion page updates and comments",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "NOTION_TOKEN",
+    "watch_databases": [],
+    "watch_pages": [],
+    "max_items": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 2
+}
