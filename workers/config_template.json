@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "poll_interval_seconds": 300,
+  "queue_retention_days": 7,
+  "user": {
+    "username": "YOUR_USERNAME",
+    "email": ""
+  },
+  "autonomy": {
+    "enabled": false,
+    "oncall_groups": []
+  },
+  "scanners": {
+    "github": {
+      "enabled": true,
+      "token_env": "GITHUB_TOKEN",
+      "username": "",
+      "watch_repos": [],
+      "watch_reviews": true,
+      "watch_ci": true,
+      "watch_mentions": true,
+      "max_items_per_query": 20
+    },
+    "slack": {
+      "enabled": false,
+      "token_env": "SLACK_TOKEN",
+      "channels": [],
+      "watch_dms": true,
+      "watch_mentions": true
+    },
+    "calendar": {
+      "enabled": false,
+      "provider": "google",
+      "credentials_path": "",
+      "prep_minutes_before": 30,
+      "reminder_minutes_before": 10,
+      "filter_declined": true,
+      "noise_subjects": ["Focus Time", "Lunch", "OOO"]
+    },
+    "git_status": {
+      "enabled": true,
+      "watch_dirs": ["."],
+      "warn_uncommitted_after_minutes": 60,
+      "warn_branch_behind": true
+    }
+  }
+}
