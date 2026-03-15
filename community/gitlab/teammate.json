@@ -1,0 +1,19 @@
+{
+  "name": "gitlab",
+  "display_name": "GitLab",
+  "version": "1.0.0",
+  "description": "Monitors GitLab merge requests, CI pipelines, and mentions",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "GITLAB_TOKEN",
+    "gitlab_url": "https://gitlab.com",
+    "username": "",
+    "max_items": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 3
+}
