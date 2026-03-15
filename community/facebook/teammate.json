@@ -1,0 +1,18 @@
+{
+  "name": "facebook",
+  "display_name": "Facebook",
+  "version": "1.0.0",
+  "description": "Monitors Facebook page notifications and Messenger messages",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "FACEBOOK_TOKEN",
+    "watch_pages": [],
+    "max_items": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 2
+}
