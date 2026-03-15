@@ -1,0 +1,9 @@
+docs/
+watchtower-oss-spec.md
+watchtower-oss-spec-deprecated.md
+Global Brand & CLI Rename.md
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

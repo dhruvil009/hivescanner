@@ -1,0 +1,10 @@
+{
+  "name": "hivescanner",
+  "version": "1.0.0",
+  "description": "Zero-token background monitoring for Claude Code - watches GitHub, Slack, and more.",
+  "author": {
+    "name": "Dhruvil Shah"
+  },
+  "skills": ["./hive/"],
+  "keywords": ["monitoring", "github", "slack", "background", "hivescanner"]
+}
