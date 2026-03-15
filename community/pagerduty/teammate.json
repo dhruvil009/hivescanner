@@ -1,0 +1,11 @@
+{
+  "name": "pagerduty",
+  "display_name": "PagerDuty",
+  "version": "1.0.0",
+  "description": "Monitors PagerDuty incidents and alerts",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {"enabled": false, "token_env": "PAGERDUTY_TOKEN", "user_id": "", "max_items": 20},
+  "requirements": {"cli_tools": []},
+  "qpm_budget": 2
+}
