@@ -13,7 +13,7 @@ POLLEN_FILE = HIVESCANNER_HOME / "pollen.json"
 SCANNERS_DIR = HIVESCANNER_HOME / "scanners"
 TEAMMATES_DIR = HIVESCANNER_HOME / "teammates"
 
-BUILTIN_SCANNERS = {"github", "slack", "calendar", "git_status", "gchat", "whatsapp", "facebook", "twitter"}
+BUILTIN_SCANNERS = {"github", "calendar", "git_status", "gchat", "whatsapp"}
 _VALID_NAME = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
