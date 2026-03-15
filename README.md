@@ -156,8 +156,10 @@ scanner_loop.py starts
 | **calendar** | Upcoming events (30min + 10min reminders), new/changed events | `meeting_reminder`, `event_changed` |
 | **gchat** | Google Chat DMs and @mentions in configured spaces | `gchat_dm`, `gchat_mention` |
 | **whatsapp** | Incoming messages from configured chats | `whatsapp_message` |
+| **email** | New emails, urgent VIP sender alerts via Gmail | `email_new`, `email_urgent` |
+| **weather** | Daily morning briefing, significant temperature swing alerts | `weather_morning`, `weather_alert` |
 
-Calendar and GChat require the [Google Workspace CLI](https://github.com/googleworkspace/cli) (`gws`). WhatsApp requires [whatsapp-cli](https://github.com/vicentereig/whatsapp-cli).
+Calendar, GChat, and Email require the [Google Workspace CLI](https://github.com/googleworkspace/cli) (`gws`). WhatsApp requires [whatsapp-cli](https://github.com/vicentereig/whatsapp-cli). Weather uses [wttr.in](https://wttr.in) (no install or API key needed).
 
 ---
 
@@ -219,8 +221,17 @@ Community scanners are self-contained Python modules that plug into HiveScanner 
 | **Slack** | Monitors Slack channels and DMs for messages, mentions, and thread replies | hivescanner-community |
 | **Facebook** | Monitors Facebook page notifications and Messenger messages | hivescanner-community |
 | **Twitter / X** | Monitors Twitter/X mentions and DMs | hivescanner-community |
+| **PagerDuty** | Monitors PagerDuty incidents and triggered alerts | hivescanner-community |
+| **Sentry** | Monitors Sentry issues and error spikes | hivescanner-community |
+| **Jira** | Monitors Jira assigned/updated/mentioned issues | hivescanner-community |
+| **GitLab** | Monitors GitLab MR reviews, CI failures, and mentions | hivescanner-community |
+| **Notion** | Monitors Notion page updates and comments | hivescanner-community |
+| **Telegram** | Monitors Telegram messages and mentions via Bot API | hivescanner-community |
+| **Discord** | Monitors Discord DMs and mentions via Bot API | hivescanner-community |
+| **HackerNews** | Monitors HN top stories by keyword and username mentions | hivescanner-community |
+| **Package Tracking** | Parses shipping emails from Gmail for tracking updates | hivescanner-community |
 
-Want to monitor PagerDuty incidents? Jira tickets? Datadog alerts? Your internal deploy system? Build a scanner and contribute it back.
+Want to monitor Datadog alerts? Your internal deploy system? Build a scanner and contribute it back.
 
 ---
 
@@ -495,10 +506,7 @@ We'd love your help expanding the scanner ecosystem. Here's how to contribute a 
 
 We're actively looking for community scanners for:
 
-- **Jira** -- issue tracking and sprint changes
-- **PagerDuty** -- incident alerts and escalations
 - **Datadog** -- monitor alerts and anomaly detection
-- **Sentry** -- error tracking and crash reports
 - **Opsgenie** -- alert management
 - **Custom internal tools** -- if it has an API, it can be a scanner
 
