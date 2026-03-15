@@ -1,0 +1,20 @@
+{
+  "name": "discord",
+  "display_name": "Discord",
+  "version": "1.0.0",
+  "description": "Monitors Discord DMs and channel mentions",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "DISCORD_BOT_TOKEN",
+    "watch_channels": [],
+    "watch_dms": true,
+    "user_id": "",
+    "max_messages": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 3
+}
