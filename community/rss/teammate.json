@@ -1,0 +1,17 @@
+{
+  "name": "rss",
+  "display_name": "RSS Feeds",
+  "version": "1.0.0",
+  "description": "Monitors RSS/Atom feeds for new entries",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "feeds": [],
+    "max_items_per_feed": 5
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 1
+}
