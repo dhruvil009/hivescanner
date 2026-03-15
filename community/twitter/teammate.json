@@ -1,0 +1,20 @@
+{
+  "name": "twitter",
+  "display_name": "Twitter / X",
+  "version": "1.0.0",
+  "description": "Monitors Twitter/X mentions and DMs",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "TWITTER_BEARER_TOKEN",
+    "username": "",
+    "user_id": "",
+    "watch_dms": true,
+    "max_items": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 2
+}
