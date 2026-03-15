@@ -153,8 +153,11 @@ scanner_loop.py starts
 |---|---|---|
 | **github** | PR review requests, CI status (pass/fail), @mentions, issue assignments, general notifications | `review_needed`, `ci_failure`, `ci_passed`, `mention`, `issue_assigned`, `notification` |
 | **git_status** | Uncommitted changes, branch behind remote, forgotten stashes, merge conflicts | `uncommitted_warning`, `branch_behind`, `stash_reminder`, `merge_conflict` |
+| **calendar** | Upcoming events (30min + 10min reminders), new/changed events | `meeting_reminder`, `event_changed` |
+| **gchat** | Google Chat DMs and @mentions in configured spaces | `gchat_dm`, `gchat_mention` |
+| **whatsapp** | Incoming messages from configured chats | `whatsapp_message` |
 
-Additional built-in scanners (Slack, Calendar) are registered in the scanner manager and can be configured through the setup wizard as they become available.
+Calendar and GChat require the [Google Workspace CLI](https://github.com/googleworkspace/cli) (`gws`). WhatsApp requires [whatsapp-cli](https://github.com/vicentereig/whatsapp-cli).
 
 ---
 
@@ -213,6 +216,9 @@ Community scanners are self-contained Python modules that plug into HiveScanner 
 |---------|-------------|--------|
 | **Linear** | Monitors Linear issues and status changes | hivescanner-community |
 | **RSS** | Monitors RSS/Atom feeds for new entries | hivescanner-community |
+| **Slack** | Monitors Slack channels and DMs for messages, mentions, and thread replies | hivescanner-community |
+| **Facebook** | Monitors Facebook page notifications and Messenger messages | hivescanner-community |
+| **Twitter / X** | Monitors Twitter/X mentions and DMs | hivescanner-community |
 
 Want to monitor PagerDuty incidents? Jira tickets? Datadog alerts? Your internal deploy system? Build a scanner and contribute it back.
 
