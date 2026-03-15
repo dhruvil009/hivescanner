@@ -1,0 +1,18 @@
+{
+  "name": "telegram",
+  "display_name": "Telegram",
+  "version": "1.0.0",
+  "description": "Monitors Telegram messages and mentions via Bot API",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "TELEGRAM_BOT_TOKEN",
+    "watch_chats": [],
+    "max_messages": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 2
+}
