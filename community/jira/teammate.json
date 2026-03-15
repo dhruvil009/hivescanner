@@ -1,0 +1,19 @@
+{
+  "name": "jira",
+  "display_name": "Jira",
+  "version": "1.0.0",
+  "description": "Monitors Jira issues — assignments, updates, and mentions",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "JIRA_TOKEN",
+    "domain": "",
+    "username": "",
+    "max_items": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 2
+}
