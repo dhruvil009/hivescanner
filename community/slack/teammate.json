@@ -1,0 +1,20 @@
+{
+  "name": "slack",
+  "display_name": "Slack",
+  "version": "1.0.0",
+  "description": "Monitors Slack channels and DMs for messages, mentions, and thread replies",
+  "author": "hivescanner-community",
+  "adapter_file": "adapter.py",
+  "config_template": {
+    "enabled": false,
+    "token_env": "SLACK_TOKEN",
+    "watch_channels": [],
+    "watch_dms": true,
+    "username": "",
+    "max_messages": 20
+  },
+  "requirements": {
+    "cli_tools": []
+  },
+  "qpm_budget": 3
+}
