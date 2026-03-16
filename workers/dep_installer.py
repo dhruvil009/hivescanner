@@ -17,9 +17,15 @@ _TOOL_REGISTRY = {
     },
     "gws": {
         "description": "Google Workspace CLI",
-        "brew": "gws",
-        "npm": "google-workspace-cli",
-        "post_install": "Run `gws auth login` to authenticate with Google Workspace.",
+        "brew": "googleworkspace-cli",
+        "npm": "@googleworkspace/cli",
+        "post_install": "Run `gws auth setup --login` to configure OAuth and authenticate.",
+        "setup_requires": ["gcloud"],
+    },
+    "gcloud": {
+        "description": "Google Cloud SDK",
+        "brew": "google-cloud-sdk",
+        "post_install": "Run `gcloud auth login` to authenticate.",
     },
     "whatsapp-cli": {
         "description": "WhatsApp CLI",
@@ -73,6 +79,10 @@ def ensure_tool(name: str) -> bool:
     if not info:
         _log(f"{name}: not found and no install method known.")
         return False
+
+    # Install prerequisites first (e.g. gws needs gcloud for auth setup)
+    for prereq in info.get("setup_requires", []):
+        ensure_tool(prereq)
 
     desc = info.get("description", name)
     _log(f"{desc} ({name}) not found. Attempting auto-install...")

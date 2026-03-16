@@ -57,16 +57,21 @@ class EmailScanner:
         if not self._cli_available:
             return [], watermark
 
-        raw = self._gws(["gmail", "+triage", "--output", "json"])
+        raw = self._gws(["gmail", "+triage", "--format", "json"])
         if raw is None:
             return [], watermark
 
         try:
-            emails = json.loads(raw)
+            data = json.loads(raw)
         except json.JSONDecodeError:
             return [], watermark
 
-        if not isinstance(emails, list):
+        # gws returns {"messages": [...]} wrapper, not a raw list
+        if isinstance(data, dict):
+            emails = data.get("messages", [])
+        elif isinstance(data, list):
+            emails = data
+        else:
             return [], watermark
 
         max_emails = config.get("max_emails", 20)

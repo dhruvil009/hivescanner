@@ -62,16 +62,21 @@ class CalendarScanner:
         if not self._cli_available:
             return [], watermark
 
-        raw = self._gws(["calendar", "+agenda", "--output", "json"])
+        raw = self._gws(["calendar", "+agenda", "--format", "json"])
         if raw is None:
             return [], watermark
 
         try:
-            events = json.loads(raw)
+            data = json.loads(raw)
         except json.JSONDecodeError:
             return [], watermark
 
-        if not isinstance(events, list):
+        # gws returns {"events": [...]} wrapper, not a raw list
+        if isinstance(data, dict):
+            events = data.get("events", data.get("items", []))
+        elif isinstance(data, list):
+            events = data
+        else:
             return [], watermark
 
         max_events = config.get("max_events", 20)

@@ -144,9 +144,11 @@ def _scan_scanner_dir(directory: Path, label: str = "") -> dict:
     scanners = {}
     if not directory.is_dir():
         return scanners
-    dir_str = str(directory)
-    if dir_str not in sys.path:
-        sys.path.insert(0, dir_str)
+    # Add workers/ (parent) to sys.path for imports like snapshot_store, dep_installer.
+    # Do NOT add sources/ itself — files like email.py and calendar.py shadow stdlib modules.
+    parent_str = str(directory.parent)
+    if parent_str not in sys.path:
+        sys.path.insert(0, parent_str)
     for py_file in sorted(directory.glob("*.py")):
         if py_file.name.startswith("_"):
             continue

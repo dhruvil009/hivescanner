@@ -71,16 +71,21 @@ class GChatScanner:
             raw = self._gws([
                 "chat", "messages", "list",
                 "--parent", space_id,
-                "--output", "json",
+                "--format", "json",
             ])
             if raw is None:
                 continue
 
             try:
-                messages = json.loads(raw)
+                data = json.loads(raw)
             except json.JSONDecodeError:
                 continue
-            if not isinstance(messages, list):
+            # gws returns {"messages": [...]} wrapper, not a raw list
+            if isinstance(data, dict):
+                messages = data.get("messages", [])
+            elif isinstance(data, list):
+                messages = data
+            else:
                 continue
 
             for msg in messages:
