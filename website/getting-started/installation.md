@@ -5,28 +5,33 @@
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and working
 - Python 3.10 or later
 - Git
+- No pip packages required — HiveScanner uses only the Python standard library
 
-## Install via Plugin Marketplace (Recommended)
+## Install (Clone + Run)
 
-Add the HiveScanner repo as a marketplace source and install:
-
-```bash
-claude plugin marketplace add github:dhruvil009/hivescanner
-claude plugin install hivescanner
-```
-
-This installs HiveScanner permanently and makes it available in all sessions.
-
-## Install via --plugin-dir (Session Only)
-
-Clone the repo anywhere and load it for a single session:
+Clone the repo and open Claude Code from within it:
 
 ```bash
 git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
-claude --plugin-dir ~/hivescanner
+cd ~/hivescanner
+claude
 ```
 
-This is useful for trying HiveScanner before committing to a permanent install.
+## Install as a Plugin (All Sessions)
+
+To make HiveScanner available from any project directory, clone the repo and register it in your Claude Code settings (`~/.claude/settings.json`):
+
+```bash
+git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
+```
+
+```json
+{
+  "plugins": ["~/hivescanner"]
+}
+```
+
+This loads HiveScanner's `/hive` skill in every Claude Code session.
 
 ## Verify Installation
 

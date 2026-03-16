@@ -39,20 +39,35 @@ Everything is surfaced inline in your Claude Code session. Dismiss with a word, 
 
 ## Quick Start
 
+### Prerequisites
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and working
+- Python 3.10+
+- Git
+- No pip packages required — HiveScanner uses only the Python standard library
+
 ### 1. Install
 
-Add the HiveScanner marketplace and install the plugin:
-
-```bash
-claude plugin marketplace add github:dhruvil009/hivescanner
-claude plugin install hivescanner
-```
-
-Or clone the repo and load it for a single session:
+Clone the repo and open Claude Code from within it:
 
 ```bash
 git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
-claude --plugin-dir ~/hivescanner
+cd ~/hivescanner
+claude
+```
+
+Or, if you want to use HiveScanner from any project directory, add it as a Claude Code plugin:
+
+```bash
+git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
+```
+
+Then add the plugin path to your Claude Code settings (`~/.claude/settings.json`):
+
+```json
+{
+  "plugins": ["~/hivescanner"]
+}
 ```
 
 ### 2. Start the setup wizard
@@ -65,12 +80,19 @@ HiveScanner launches an interactive wizard that walks you through configuration.
 
 ### 3. Configure your sources
 
-The wizard will ask you to set up:
+The wizard walks you through the core scanners:
 
 - **GitHub** -- which repos to watch, whether to track reviews, CI, and @mentions (requires `gh` CLI or `$GITHUB_TOKEN`)
 - **Slack** -- optional; which channels and DMs to monitor (requires `$SLACK_TOKEN`)
-- **Calendar** -- optional; Google Calendar integration for meeting prep and reminders
+- **Calendar** -- optional; Google Calendar integration for meeting prep and reminders (requires `gws` CLI)
 - **git_status** -- enabled by default; watches local directories for uncommitted changes, stale branches, merge conflicts, and forgotten stashes
+
+Additional built-in scanners can be enabled after setup by editing `~/.hivescanner/config.json`:
+
+- **GChat** -- Google Chat DMs and @mentions (requires `gws` CLI)
+- **WhatsApp** -- incoming messages from configured chats (requires `whatsapp-cli`)
+- **Email** -- new emails and urgent VIP sender alerts via Gmail (requires `gws` CLI)
+- **Weather** -- daily briefing and temperature swing alerts (uses [wttr.in](https://wttr.in), no API key needed)
 
 ### 4. Set your poll interval
 
@@ -202,7 +224,7 @@ HiveScanner's Python workers handle all the polling deterministically. The LLM (
 | **Security** | Catastrophic (CVEs, malicious skills) | Container isolation | 6-gate safety + sandboxed scanners |
 | **Extensibility** | ClawHub (compromised) | None | Community scanner ecosystem |
 | **Architecture** | 500K LOC, 70+ deps | ~500 LOC TypeScript | Minimal Python pollers + plugin manifest |
-| **Install** | Clone + configure gateway | Docker container | `git clone` -> `/hive` |
+| **Install** | Clone + configure gateway | Docker container | `git clone` + `/hive` (zero deps) |
 
 ### Plugin-native, not another process
 
