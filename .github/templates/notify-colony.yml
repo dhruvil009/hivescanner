@@ -1,0 +1,22 @@
+# Colony Notify Workflow Template
+#
+# Copy this file to your plugin repo at: .github/workflows/notify-colony.yml
+# Replace PLUGIN_NAME_HERE with your plugin's name from colony.json
+#
+name: Notify Colony
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Colony sync
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.COLONY_DISPATCH_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/dhruvil009/Colony/dispatches \
+            -d '{"event_type": "plugin-updated", "client_payload": {"plugin": "hivescanner"}}'
