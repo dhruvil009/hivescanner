@@ -46,23 +46,33 @@ Everything is surfaced inline in your Claude Code session. Dismiss with a word, 
 - Git
 - No pip packages required — HiveScanner uses only the Python standard library
 
-### 1. Install
+### 1. Install via Colony Marketplace (Recommended)
 
-Clone the repo and open Claude Code from within it:
+Install through [Colony](https://github.com/dhruvil009/Colony), the plugin marketplace. This gives you HiveScanner plus access to all other Colony plugins and future updates:
+
+```bash
+git clone https://github.com/dhruvil009/Colony.git ~/Colony
+```
+
+Then register the marketplace in your Claude Code settings (`~/.claude/settings.json`):
+
+```json
+{
+  "plugins": ["~/Colony/plugins/hivescanner"]
+}
+```
+
+Browse all available plugins at [Colony](https://github.com/dhruvil009/Colony).
+
+### 1b. Install Standalone
+
+If you only want HiveScanner:
 
 ```bash
 git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
-cd ~/hivescanner
-claude
 ```
 
-Or, if you want to use HiveScanner from any project directory, add it as a Claude Code plugin:
-
-```bash
-git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
-```
-
-Then add the plugin path to your Claude Code settings (`~/.claude/settings.json`):
+Then add it to your Claude Code settings (`~/.claude/settings.json`):
 
 ```json
 {
