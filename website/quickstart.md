@@ -4,18 +4,11 @@ Get HiveScanner running in under 5 minutes.
 
 ## 1. Install
 
-Install through [Colony](https://github.com/dhruvil009/Colony), the plugin marketplace:
+Add [Colony](https://github.com/dhruvil009/Colony) and install HiveScanner:
 
-```bash
-git clone https://github.com/dhruvil009/Colony.git ~/Colony
 ```
-
-Then add to your Claude Code settings (`~/.claude/settings.json`):
-
-```json
-{
-  "plugins": ["~/Colony/plugins/hivescanner"]
-}
+/plugin marketplace add dhruvil009/Colony
+/plugin install hivescanner@dhruvil009-Colony
 ```
 
 No pip packages needed — HiveScanner uses only the Python standard library.

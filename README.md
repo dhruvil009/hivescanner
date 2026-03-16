@@ -41,43 +41,28 @@ Everything is surfaced inline in your Claude Code session. Dismiss with a word, 
 
 ### Prerequisites
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and working
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) v1.0.33+ installed and working
 - Python 3.10+
-- Git
 - No pip packages required — HiveScanner uses only the Python standard library
 
 ### 1. Install via Colony Marketplace (Recommended)
 
-Install through [Colony](https://github.com/dhruvil009/Colony), the plugin marketplace. This gives you HiveScanner plus access to all other Colony plugins and future updates:
+Add [Colony](https://github.com/dhruvil009/Colony), the plugin marketplace, and install HiveScanner from it. This gives you access to all Colony plugins and automatic updates:
 
-```bash
-git clone https://github.com/dhruvil009/Colony.git ~/Colony
+```
+/plugin marketplace add dhruvil009/Colony
+/plugin install hivescanner@dhruvil009-Colony
 ```
 
-Then register the marketplace in your Claude Code settings (`~/.claude/settings.json`):
-
-```json
-{
-  "plugins": ["~/Colony/plugins/hivescanner"]
-}
-```
-
-Browse all available plugins at [Colony](https://github.com/dhruvil009/Colony).
+Browse all available plugins with `/plugin` under the **Discover** tab, or visit [Colony on GitHub](https://github.com/dhruvil009/Colony).
 
 ### 1b. Install Standalone
 
-If you only want HiveScanner:
+If you only want HiveScanner without the marketplace:
 
-```bash
-git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
 ```
-
-Then add it to your Claude Code settings (`~/.claude/settings.json`):
-
-```json
-{
-  "plugins": ["~/hivescanner"]
-}
+/plugin marketplace add dhruvil009/hivescanner
+/plugin install hivescanner@dhruvil009-hivescanner
 ```
 
 ### 2. Start the setup wizard
@@ -234,11 +219,11 @@ HiveScanner's Python workers handle all the polling deterministically. The LLM (
 | **Security** | Catastrophic (CVEs, malicious skills) | Container isolation | 6-gate safety + sandboxed scanners |
 | **Extensibility** | ClawHub (compromised) | None | Community scanner ecosystem |
 | **Architecture** | 500K LOC, 70+ deps | ~500 LOC TypeScript | Minimal Python pollers + plugin manifest |
-| **Install** | Clone + configure gateway | Docker container | `git clone` + `/hive` (zero deps) |
+| **Install** | Clone + configure gateway | Docker container | `/plugin install` (zero deps) |
 
 ### Plugin-native, not another process
 
-HiveScanner is a Claude Code plugin, not a standalone application. No separate gateway server. No port binding. No Docker container to manage. Type `/hive`, configure once, and it runs inside the tool you already have open. One less thing in your process manager.
+HiveScanner is a Claude Code plugin, not a standalone application. No separate gateway server. No port binding. No Docker container to manage. Install from the [Colony marketplace](https://github.com/dhruvil009/Colony) with `/plugin install`, run `/hive`, configure once, and it runs inside the tool you already have open. One less thing in your process manager.
 
 ---
 

@@ -2,44 +2,40 @@
 
 ## Prerequisites
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and working
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) v1.0.33+ installed and working
 - Python 3.10 or later
-- Git
 - No pip packages required — HiveScanner uses only the Python standard library
 
 ## Install via Colony Marketplace (Recommended)
 
-Install through [Colony](https://github.com/dhruvil009/Colony), the plugin marketplace. This gives you HiveScanner plus access to all other Colony plugins and future updates:
+Add [Colony](https://github.com/dhruvil009/Colony), the plugin marketplace, and install HiveScanner from it. This gives you access to all Colony plugins and automatic updates:
 
-```bash
-git clone https://github.com/dhruvil009/Colony.git ~/Colony
+```
+/plugin marketplace add dhruvil009/Colony
+/plugin install hivescanner@dhruvil009-Colony
 ```
 
-Then register the plugin in your Claude Code settings (`~/.claude/settings.json`):
-
-```json
-{
-  "plugins": ["~/Colony/plugins/hivescanner"]
-}
-```
-
-Browse all available plugins at [Colony](https://github.com/dhruvil009/Colony).
+Browse all available plugins with `/plugin` under the **Discover** tab, or visit [Colony on GitHub](https://github.com/dhruvil009/Colony).
 
 ## Install Standalone
 
-If you only want HiveScanner, clone the repo directly and register it:
+If you only want HiveScanner without the full marketplace:
 
-```bash
-git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
 ```
-
-```json
-{
-  "plugins": ["~/hivescanner"]
-}
+/plugin marketplace add dhruvil009/hivescanner
+/plugin install hivescanner@dhruvil009-hivescanner
 ```
 
 This loads HiveScanner's `/hive` skill in every Claude Code session.
+
+## Manage Your Installation
+
+```
+/plugin                              # Browse and manage plugins (interactive UI)
+/plugin disable hivescanner@...      # Temporarily disable
+/plugin enable hivescanner@...       # Re-enable
+/plugin uninstall hivescanner@...    # Remove completely
+```
 
 ## Verify Installation
 
