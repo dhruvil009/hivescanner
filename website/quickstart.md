@@ -4,17 +4,21 @@ Get HiveScanner running in under 5 minutes.
 
 ## 1. Install
 
-Clone the repo into your Claude Code plugins directory:
+Add the HiveScanner marketplace and install the plugin:
 
 ```bash
-git clone https://github.com/dhruvil009/hivescanner.git ~/.claude/plugins/hivescanner
+claude plugin marketplace add github:dhruvil009/hivescanner
+claude plugin install hivescanner
 ```
 
-Or add as a Claude Code plugin:
+Or clone the repo and load it directly for a single session:
 
 ```bash
-claude plugin add hivescanner
+git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
+claude --plugin-dir ~/hivescanner
 ```
+
+See [Installation](/getting-started/installation) for more details.
 
 ## 2. Start the Setup Wizard
 

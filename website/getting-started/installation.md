@@ -6,17 +6,27 @@
 - Python 3.10 or later
 - Git
 
-## Install via Git Clone
+## Install via Plugin Marketplace (Recommended)
+
+Add the HiveScanner repo as a marketplace source and install:
 
 ```bash
-git clone https://github.com/dhruvil009/hivescanner.git ~/.claude/plugins/hivescanner
+claude plugin marketplace add github:dhruvil009/hivescanner
+claude plugin install hivescanner
 ```
 
-## Install via Claude Code Plugin Manager
+This installs HiveScanner permanently and makes it available in all sessions.
+
+## Install via --plugin-dir (Session Only)
+
+Clone the repo anywhere and load it for a single session:
 
 ```bash
-claude plugin add hivescanner
+git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
+claude --plugin-dir ~/hivescanner
 ```
+
+This is useful for trying HiveScanner before committing to a permanent install.
 
 ## Verify Installation
 

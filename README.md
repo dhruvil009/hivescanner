@@ -41,14 +41,18 @@ Everything is surfaced inline in your Claude Code session. Dismiss with a word, 
 
 ### 1. Install
 
-Clone the repo into your Claude Code plugins directory or install directly:
+Add the HiveScanner marketplace and install the plugin:
 
 ```bash
-# Clone
-git clone https://github.com/dhruvil009/hivescanner.git ~/.claude/plugins/hivescanner
+claude plugin marketplace add github:dhruvil009/hivescanner
+claude plugin install hivescanner
+```
 
-# Or add as a Claude Code plugin
-claude plugin add hivescanner
+Or clone the repo and load it for a single session:
+
+```bash
+git clone https://github.com/dhruvil009/hivescanner.git ~/hivescanner
+claude --plugin-dir ~/hivescanner
 ```
 
 ### 2. Start the setup wizard
