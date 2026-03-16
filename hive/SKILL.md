@@ -12,6 +12,7 @@ allowed-tools:
   - AskUserQuestion
   - Task
   - TaskOutput
+  - TaskStop
 ---
 
 # HiveScanner — The Queen (Session Orchestration)
@@ -107,6 +108,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/workers/scanner_loop.py
 ```
 Use `run_in_background: true` and `timeout: 600000` (10 minutes).
 
+**After launch**: The Bash tool returns a background task ID (e.g., `bp0fw2cvc`). Write it to `~/.hivescanner/.task_id` so that `/hive stop` can clean up the Claude Code background task:
+```bash
+echo "<task_id>" > ~/.hivescanner/.task_id
+```
+
 ---
 
 ## Event Loop (when scanner loop returns)
@@ -135,7 +141,7 @@ Use `run_in_background: true` and `timeout: 600000` (10 minutes).
    → Type "post #N" to send, "edit #N" to modify, or "skip #N" to discard
    ```
    Handle: `post #N` → call `post_response`, `edit #N` → modify, `skip #N` → discard
-10. **Restart background scanner loop** (go back to step 7)
+10. **Restart background scanner loop** (go back to step 7). Write the new task ID to `~/.hivescanner/.task_id`.
 
 ### If type "error":
 
@@ -143,15 +149,15 @@ Surface if persistent (3+ repeats). Silently restart otherwise.
 
 ### If timeout (10 min):
 
-Silently restart the scanner loop. Do NOT surface anything.
+Silently restart the scanner loop. Write the new task ID to `~/.hivescanner/.task_id`. Do NOT surface anything.
 
 ---
 
 ## Stop Mode
 
-1. Find the scanner loop PID from `~/.hivescanner/.lock`
-2. Kill the background bash process
-3. Remove lockfile
+1. **Stop the Claude Code background task**: Read `~/.hivescanner/.task_id`. If it exists, call `TaskStop` with that task ID to terminate the background Bash wrapper. Remove `.task_id` file.
+2. **Kill the scanner loop process**: Read PID from `~/.hivescanner/.lock`. If the PID is still running (`ps -p PID`), kill it.
+3. Remove lockfile (`~/.hivescanner/.lock`)
 4. Show session summary:
    ```
    HiveScanner stopped. Workers recalled to the Hive.
