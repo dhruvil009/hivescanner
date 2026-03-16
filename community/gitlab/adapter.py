@@ -1,5 +1,7 @@
 """GitLab scanner — monitors GitLab merge requests, CI pipelines, and mentions."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

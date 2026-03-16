@@ -1,5 +1,7 @@
 """Pollen manager — JSON-based pollen lifecycle: pending -> acknowledged | acted."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

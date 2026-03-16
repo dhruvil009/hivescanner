@@ -1,5 +1,7 @@
 """Weather scanner — surfaces weather briefings and alerts via wttr.in."""
 
+from __future__ import annotations
+
 import hashlib
 import json
 import sys

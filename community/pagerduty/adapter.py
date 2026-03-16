@@ -1,5 +1,7 @@
 """PagerDuty scanner — monitors PagerDuty incidents and alerts."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

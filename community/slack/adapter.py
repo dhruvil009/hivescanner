@@ -1,5 +1,7 @@
 """Slack scanner — monitors Slack channels and DMs for messages, mentions, and thread replies."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

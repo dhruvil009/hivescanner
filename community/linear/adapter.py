@@ -1,5 +1,7 @@
 """Linear scanner — monitors Linear issues and status changes."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

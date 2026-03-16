@@ -1,5 +1,7 @@
 """Discord scanner — monitors Discord DMs and channel mentions."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

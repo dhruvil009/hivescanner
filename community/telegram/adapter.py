@@ -1,5 +1,7 @@
 """Telegram scanner — monitors Telegram messages and mentions via Bot API."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

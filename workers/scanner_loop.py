@@ -1,5 +1,7 @@
 """Background scanner loop — polls data sources, exits when new pollen found."""
 
+from __future__ import annotations
+
 import importlib.util
 import json
 import os
@@ -9,6 +11,8 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+from dep_installer import preflight
 
 HIVESCANNER_HOME = Path.home() / ".hivescanner"
 LOCK_FILE = HIVESCANNER_HOME / ".lock"
@@ -298,6 +302,7 @@ def main():
     acquire_lock()
     try:
         config = load_config()
+        preflight(config)  # Auto-install missing CLI deps for enabled scanners
         watermarks = load_watermarks()
         scanners = load_scanners()
         third_party = get_third_party_scanners()

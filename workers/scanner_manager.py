@@ -1,11 +1,15 @@
 """Scanner manager — hire/fire/list community scanners."""
 
+from __future__ import annotations
+
 import json
 import os
 import re
 import shutil
 import sys
 from pathlib import Path
+
+from dep_installer import ensure_tool
 
 HIVESCANNER_HOME = Path.home() / ".hivescanner"
 CONFIG_FILE = HIVESCANNER_HOME / "config.json"
@@ -83,11 +87,11 @@ def hire(name: str) -> dict:
     if not source_scanner.exists():
         return {"error": f"Scanner file '{scanner_file}' not found in community/{name}/"}
 
-    # Check CLI dependencies
+    # Check CLI dependencies — auto-install if possible
     requirements = manifest.get("requirements", {})
     missing_tools = []
     for tool in requirements.get("cli_tools", []):
-        if not shutil.which(tool):
+        if not ensure_tool(tool):
             missing_tools.append(tool)
     if missing_tools:
         return {"error": f"Missing required CLI tools: {', '.join(missing_tools)}"}

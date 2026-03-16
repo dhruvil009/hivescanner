@@ -1,5 +1,7 @@
 """Notion scanner — monitors Notion page updates and comments."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys

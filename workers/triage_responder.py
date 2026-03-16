@@ -1,5 +1,7 @@
 """Triage responder — template-based draft generation + safety gates for oncall autonomy."""
 
+from __future__ import annotations
+
 import json
 import os
 import re

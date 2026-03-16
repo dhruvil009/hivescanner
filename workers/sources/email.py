@@ -1,17 +1,20 @@
 """Email/Gmail scanner — watches inbox for new emails via `gws` CLI (Google Workspace)."""
 
+from __future__ import annotations
+
 import json
-import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
 
 # Resolve imports whether run as module or standalone
 try:
+    from dep_installer import ensure_tool
     from snapshot_store import load_snapshot, save_snapshot
 except ImportError:
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from dep_installer import ensure_tool
     from snapshot_store import load_snapshot, save_snapshot
 
 
@@ -50,7 +53,7 @@ class EmailScanner:
 
     def poll(self, config: dict, watermark: str) -> tuple[list[dict], str]:
         if self._cli_available is None:
-            self._cli_available = shutil.which("gws") is not None
+            self._cli_available = ensure_tool("gws")
         if not self._cli_available:
             return [], watermark
 

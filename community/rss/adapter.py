@@ -1,5 +1,7 @@
 """RSS scanner — minimal example community scanner for HiveScanner."""
 
+from __future__ import annotations
+
 import hashlib
 import json
 import sys

@@ -1,5 +1,7 @@
 """Git status scanner — zero-config, zero-network, zero-auth local git monitoring."""
 
+from __future__ import annotations
+
 import os
 import subprocess
 import sys
