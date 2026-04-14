@@ -8,6 +8,29 @@ import sys
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+
+
+def _parse_date(s: str) -> datetime | None:
+    if not s:
+        return None
+    try:
+        dt = parsedate_to_datetime(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (TypeError, ValueError):
+        pass
+    try:
+        iso = s.rstrip()
+        if iso.endswith("Z"):
+            iso = iso[:-1] + "+00:00"
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
 
 
 class RssScanner:
@@ -52,7 +75,9 @@ class RssScanner:
                     pub_date = (entry.findtext("pubDate") or
                                 entry.findtext("atom:published", namespaces=ns) or "")
 
-                    if pub_date and pub_date <= watermark:
+                    item_dt = _parse_date(pub_date)
+                    wm_dt = _parse_date(watermark)
+                    if item_dt and wm_dt and item_dt <= wm_dt:
                         continue
 
                     pollen_id = f"rss-{hashlib.sha256(f'{feed_url}:{title}'.encode()).hexdigest()[:12]}"
