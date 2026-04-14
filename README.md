@@ -45,6 +45,10 @@ Everything is surfaced inline in your Claude Code session. Dismiss with a word, 
 - Python 3.10+
 - No pip packages required — HiveScanner uses only the Python standard library
 
+### CLI Dependencies
+
+Some scanners require external CLI tools (`gh`, `gws`, `gcloud`, `whatsapp-cli`, `git`). These are **not auto-installed by default**. If a scanner needs a tool that isn't on your `PATH`, HiveScanner logs the exact install command to stderr and the scanner is skipped. Set `HIVESCANNER_AUTO_INSTALL=1` in your environment to let HiveScanner install missing tools for you via `brew`/`npm`/`pip`.
+
 ### 1. Install via Colony Marketplace (Recommended)
 
 Add [Colony](https://github.com/dhruvil009/Colony), the plugin marketplace, and install HiveScanner from it. This gives you access to all Colony plugins and automatic updates:

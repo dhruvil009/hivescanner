@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import shutil
 import subprocess
@@ -49,9 +50,30 @@ _SCANNER_TOOLS = {
     "git_status": ["git"],
 }
 
+_AUTO_INSTALL_ENV = "HIVESCANNER_AUTO_INSTALL"
+
 
 def _log(msg: str) -> None:
     print(f"[hivescanner:deps] {msg}", file=sys.stderr)
+
+
+def _auto_install_enabled() -> bool:
+    return os.environ.get(_AUTO_INSTALL_ENV, "").strip() in {"1", "true", "yes"}
+
+
+def _install_instructions(name: str, info: dict) -> str:
+    parts = []
+    if "brew" in info and platform.system() == "Darwin":
+        parts.append(f"brew install {info['brew']}")
+    if "npm" in info:
+        parts.append(f"npm install -g {info['npm']}")
+    if "pip" in info:
+        parts.append(f"pip install {info['pip']}")
+    if not parts:
+        return "install manually (no known package)"
+    joined = " OR ".join(parts)
+    post = info.get("post_install")
+    return f"{joined}" + (f"  (then: {post})" if post else "")
 
 
 def _run_install(cmd: list[str], timeout: int = 120) -> bool:
@@ -68,9 +90,10 @@ def _run_install(cmd: list[str], timeout: int = 120) -> bool:
 
 
 def ensure_tool(name: str) -> bool:
-    """Check if a CLI tool is available; auto-install if missing.
+    """Check if a CLI tool is available; auto-install if missing and opted in.
 
-    Returns True if the tool is available after the check.
+    By default, logs install instructions and returns False when missing.
+    Set HIVESCANNER_AUTO_INSTALL=1 to enable the auto-install chain.
     """
     if shutil.which(name):
         return True
@@ -80,11 +103,17 @@ def ensure_tool(name: str) -> bool:
         _log(f"{name}: not found and no install method known.")
         return False
 
+    desc = info.get("description", name)
+
+    if not _auto_install_enabled():
+        _log(f"{desc} ({name}) not found. Install: {_install_instructions(name, info)}")
+        _log(f"  (or set {_AUTO_INSTALL_ENV}=1 to enable auto-install)")
+        return False
+
     # Install prerequisites first (e.g. gws needs gcloud for auth setup)
     for prereq in info.get("setup_requires", []):
         ensure_tool(prereq)
 
-    desc = info.get("description", name)
     _log(f"{desc} ({name}) not found. Attempting auto-install...")
 
     # Try brew (macOS)
