@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _state_hash(s: str) -> str:
+    return hashlib.sha1(s.encode()).hexdigest()[:8]
 
 
 class GitStatusScanner:
@@ -57,7 +62,7 @@ class GitStatusScanner:
             if status and status.strip():
                 lines = [l for l in status.strip().split("\n") if l.strip()]
                 if lines:
-                    pollen_id = f"git-uncommitted-{dir_label}"
+                    pollen_id = f"git-uncommitted-{dir_label}-{_state_hash(status)}"
                     pollen.append({
                         "id": pollen_id,
                         "source": "git_status",
@@ -83,7 +88,7 @@ class GitStatusScanner:
                     count = behind.strip()
                     branch = self._git(["branch", "--show-current"], cwd=d)
                     branch_name = branch.strip() if branch else "current branch"
-                    pollen_id = f"git-behind-{dir_label}-{branch_name}"
+                    pollen_id = f"git-behind-{dir_label}-{branch_name}-{count}"
                     pollen.append({
                         "id": pollen_id,
                         "source": "git_status",
@@ -106,7 +111,7 @@ class GitStatusScanner:
             stash = self._git(["stash", "list"], cwd=d)
             if stash and stash.strip():
                 stash_lines = stash.strip().split("\n")
-                pollen_id = f"git-stash-{dir_label}"
+                pollen_id = f"git-stash-{dir_label}-{_state_hash(stash)}"
                 pollen.append({
                     "id": pollen_id,
                     "source": "git_status",
@@ -129,7 +134,7 @@ class GitStatusScanner:
             conflicts = self._git(["diff", "--name-only", "--diff-filter=U"], cwd=d)
             if conflicts and conflicts.strip():
                 conflict_files = conflicts.strip().split("\n")
-                pollen_id = f"git-conflict-{dir_label}"
+                pollen_id = f"git-conflict-{dir_label}-{_state_hash(conflicts)}"
                 pollen.append({
                     "id": pollen_id,
                     "source": "git_status",
