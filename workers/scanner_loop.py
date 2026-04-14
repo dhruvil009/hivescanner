@@ -35,7 +35,8 @@ def handle_signal(signum, frame):
 
 signal.signal(signal.SIGTERM, handle_signal)
 signal.signal(signal.SIGINT, handle_signal)
-signal.signal(signal.SIGHUP, handle_signal)
+if hasattr(signal, "SIGHUP"):
+    signal.signal(signal.SIGHUP, handle_signal)
 
 
 def _utc_now_z() -> str:
