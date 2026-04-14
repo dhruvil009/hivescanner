@@ -161,6 +161,17 @@ class GitHubScanner:
 
             repo_name = notif.get("repository", {}).get("full_name", "")
 
+            metadata = {
+                "notification_id": notif_id,
+                "reason": reason,
+                "subject_type": subject_type,
+                "repo": repo_name,
+            }
+            if subject_type == "PullRequest":
+                pr_number = self._pr_number_from_api_url(url_path)
+                if pr_number is not None:
+                    metadata["pr_number"] = pr_number
+
             items.append({
                 "id": f"github-{pollen_type}-{notif_id}",
                 "source": "github",
@@ -172,15 +183,20 @@ class GitHubScanner:
                 "author_name": "",
                 "group": group,
                 "url": web_url,
-                "metadata": {
-                    "notification_id": notif_id,
-                    "reason": reason,
-                    "subject_type": subject_type,
-                    "repo": repo_name,
-                },
+                "metadata": metadata,
             })
 
         return items
+
+    @staticmethod
+    def _pr_number_from_api_url(api_url: str) -> int | None:
+        """Extract PR number from API URL like https://api.github.com/repos/{owner}/{repo}/pulls/{number}."""
+        if not api_url or "/pulls/" not in api_url:
+            return None
+        try:
+            return int(api_url.rsplit("/", 1)[-1])
+        except (ValueError, IndexError):
+            return None
 
     def _poll_ci_status(self, username: str, watch_repos: list[str]) -> list[dict]:
         """Check CI status on user's open PRs."""
