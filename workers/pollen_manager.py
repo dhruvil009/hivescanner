@@ -39,6 +39,12 @@ def add_pollen(hive: dict, pollen: list[dict]) -> list[dict]:
     existing_ids = {p["id"] for p in hive["pollen"] if p.get("id")}
     added = []
     for p in pollen:
+        if not p.get("id"):
+            print(
+                f"[pollen] skipping item without 'id' from source={p.get('source', 'unknown')}: {p.get('title', '')[:60]}",
+                file=sys.stderr,
+            )
+            continue
         if p["id"] in existing_ids:
             continue
         p.setdefault("status", "pending")

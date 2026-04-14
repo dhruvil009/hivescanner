@@ -359,7 +359,15 @@ def main():
 
             if pollen:
                 known_ids = load_pollen_ids()
-                new_pollen = [p for p in pollen if p["id"] not in known_ids]
+                new_pollen = []
+                for p in pollen:
+                    pid = p.get("id")
+                    if not pid:
+                        print(f"[scanner] dropping pollen without id from source={p.get('source', 'unknown')}", file=sys.stderr)
+                        continue
+                    if pid in known_ids:
+                        continue
+                    new_pollen.append(p)
             else:
                 new_pollen = []
 

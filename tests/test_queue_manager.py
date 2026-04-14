@@ -64,6 +64,21 @@ class TestAddPollen:
         assert p["relevance"] is None
         assert p["acknowledged_at"] is None
 
+    def test_skips_items_without_id(self, capsys):
+        hive = {"pollen": [], "last_updated": ""}
+        valid = _make_pollen("valid")
+        no_id = {"source": "community-x", "title": "Missing id item"}
+        empty_id = {"id": "", "source": "community-y", "title": "Empty id item"}
+        added = pollen_manager.add_pollen(hive, [valid, no_id, empty_id])
+        assert len(added) == 1
+        assert added[0]["id"] == "valid"
+        assert len(hive["pollen"]) == 1
+        assert hive["pollen"][0]["id"] == "valid"
+        captured = capsys.readouterr()
+        assert "community-x" in captured.err
+        assert "community-y" in captured.err
+        assert captured.err.count("skipping item without 'id'") == 2
+
 
 class TestDismiss:
     def test_dismiss_by_id(self):
