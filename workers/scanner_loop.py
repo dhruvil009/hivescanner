@@ -64,6 +64,23 @@ def output_error(msg: str) -> None:
 
 
 def is_pid_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        ERROR_ACCESS_DENIED = 5
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if handle:
+            exit_code = ctypes.c_ulong()
+            ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+            kernel32.CloseHandle(handle)
+            if ok:
+                return exit_code.value == STILL_ACTIVE
+            return True
+        return kernel32.GetLastError() == ERROR_ACCESS_DENIED
     try:
         os.kill(pid, 0)
         return True
@@ -72,7 +89,7 @@ def is_pid_running(pid: int) -> bool:
 
 
 def acquire_lock() -> None:
-    # POSIX path uses fcntl.flock for atomic mutual exclusion; Windows falls through to legacy O_EXCL logic (P2 #13).
+    # POSIX uses fcntl.flock; Windows uses the O_EXCL + PID check path.
     global _META_LOCK_FD
     HIVESCANNER_HOME.mkdir(parents=True, exist_ok=True)
 
