@@ -7,13 +7,40 @@ import os
 import sys
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 
-try:
-    from snapshot_store import load_snapshot, save_snapshot
-except ImportError:
-    _parent = os.path.join(os.path.dirname(__file__), "..", "..", "workers")
-    sys.path.insert(0, _parent)
-    from snapshot_store import load_snapshot, save_snapshot
+# Inlined snapshot_store to keep adapter self-contained when sandboxed.
+_HIVESCANNER_HOME = Path.home() / ".hivescanner"
+_SNAPSHOTS_FILE = _HIVESCANNER_HOME / "snapshots.json"
+
+
+def _load_all() -> dict:
+    if not _SNAPSHOTS_FILE.exists():
+        return {}
+    try:
+        return json.loads(_SNAPSHOTS_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_all(data: dict) -> None:
+    _HIVESCANNER_HOME.mkdir(parents=True, exist_ok=True)
+    tmp = _SNAPSHOTS_FILE.with_suffix(".tmp")
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(str(tmp), str(_SNAPSHOTS_FILE))
+
+
+def load_snapshot(name: str) -> dict:
+    """Load named snapshot. Returns {} if missing."""
+    return _load_all().get(name, {})
+
+
+def save_snapshot(name: str, snapshot: dict) -> None:
+    """Save named snapshot. Merges with existing snapshots on disk."""
+    all_snapshots = _load_all()
+    all_snapshots[name] = snapshot
+    _save_all(all_snapshots)
 
 
 class LinearScanner:

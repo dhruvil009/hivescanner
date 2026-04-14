@@ -7,15 +7,9 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-# Mock snapshot_store before importing the adapter since LinearScanner
-# calls load_snapshot at __init__ time. Save and restore the original
-# module to avoid polluting other tests (e.g. test_snapshot_store.py).
-mock_ss = MagicMock()
-mock_ss.load_snapshot = MagicMock(return_value={})
-mock_ss.save_snapshot = MagicMock()
-_original_ss = sys.modules.get("snapshot_store")
-sys.modules["snapshot_store"] = mock_ss
-
+# Load the adapter module. snapshot_store is inlined into the adapter
+# (for sandboxed self-containment), so we patch load_snapshot/save_snapshot
+# on the adapter module itself rather than mocking a separate module.
 _LINEAR_PATH = os.path.join(
     os.path.dirname(__file__), "..", "community", "linear", "adapter.py"
 )
@@ -25,11 +19,12 @@ sys.modules["linear_adapter"] = _linear_mod
 _spec.loader.exec_module(_linear_mod)
 LinearScanner = _linear_mod.LinearScanner
 
-# Restore original snapshot_store module so other tests aren't affected
-if _original_ss is not None:
-    sys.modules["snapshot_store"] = _original_ss
-else:
-    del sys.modules["snapshot_store"]
+# Replace the inlined load/save with mocks for tests.
+mock_ss = MagicMock()
+mock_ss.load_snapshot = MagicMock(return_value={})
+mock_ss.save_snapshot = MagicMock()
+_linear_mod.load_snapshot = mock_ss.load_snapshot
+_linear_mod.save_snapshot = mock_ss.save_snapshot
 
 
 SAMPLE_GRAPHQL_RESPONSE = {
