@@ -30,9 +30,8 @@ _TOOL_REGISTRY = {
     },
     "whatsapp-cli": {
         "description": "WhatsApp CLI",
-        "npm": "whatsapp-cli",
-        "pip": "whatsapp-cli",
-        "post_install": "Run `whatsapp-cli auth` to link your WhatsApp account.",
+        "brew": "vicentereig/tap/whatsapp-cli",
+        "post_install": "Run `whatsapp-cli auth` (QR code), then `whatsapp-cli messages sync` to populate the local DB. The scanner reads from the synced DB.",
     },
     "git": {
         "description": "Git",

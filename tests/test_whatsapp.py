@@ -65,26 +65,26 @@ class TestWhatsAppScanner:
         assert config["watch_chats"] == []
         assert config["max_messages"] == 20
 
-    @patch("whatsapp.shutil.which", return_value=None)
+    @patch("whatsapp.ensure_tool", return_value=False)
     @patch("whatsapp.save_snapshot")
-    def test_poll_no_cli(self, _save, _which, scanner):
+    def test_poll_no_cli(self, _save, _ensure, scanner):
         scanner._cli_available = None
         config = scanner.configure()
         pollen, wm = scanner.poll(config, "")
         assert pollen == []
 
-    @patch("whatsapp.shutil.which", return_value="/usr/local/bin/whatsapp-cli")
+    @patch("whatsapp.ensure_tool", return_value=True)
     @patch("whatsapp.save_snapshot")
-    def test_poll_no_messages(self, _save, _which, scanner):
+    def test_poll_no_messages(self, _save, _ensure, scanner):
         scanner._cli_available = None
         with patch.object(scanner, "_wa", return_value=json.dumps([])):
             config = scanner.configure()
             pollen, wm = scanner.poll(config, "")
             assert pollen == []
 
-    @patch("whatsapp.shutil.which", return_value="/usr/local/bin/whatsapp-cli")
+    @patch("whatsapp.ensure_tool", return_value=True)
     @patch("whatsapp.save_snapshot")
-    def test_poll_new_message(self, _save, _which, scanner):
+    def test_poll_new_message(self, _save, _ensure, scanner):
         scanner._cli_available = None
         with patch.object(scanner, "_wa", return_value=json.dumps(SAMPLE_MESSAGES[:1])):
             config = scanner.configure()
@@ -96,9 +96,9 @@ class TestWhatsAppScanner:
             assert p["source"] == "whatsapp"
             assert p["author_name"] == "Alice"
 
-    @patch("whatsapp.shutil.which", return_value="/usr/local/bin/whatsapp-cli")
+    @patch("whatsapp.ensure_tool", return_value=True)
     @patch("whatsapp.save_snapshot")
-    def test_watch_chats_filtering(self, _save, _which, scanner):
+    def test_watch_chats_filtering(self, _save, _ensure, scanner):
         scanner._cli_available = None
         with patch.object(scanner, "_wa", return_value=json.dumps(SAMPLE_MESSAGES)):
             config = scanner.configure()
@@ -107,18 +107,18 @@ class TestWhatsAppScanner:
             assert len(pollen) == 1
             assert pollen[0]["group"] == "group-abc@g.us"
 
-    @patch("whatsapp.shutil.which", return_value="/usr/local/bin/whatsapp-cli")
+    @patch("whatsapp.ensure_tool", return_value=True)
     @patch("whatsapp.save_snapshot")
-    def test_bootstrap_silence(self, _save, _which, bootstrapping_scanner):
+    def test_bootstrap_silence(self, _save, _ensure, bootstrapping_scanner):
         bootstrapping_scanner._cli_available = None
         with patch.object(bootstrapping_scanner, "_wa", return_value=json.dumps(SAMPLE_MESSAGES)):
             config = bootstrapping_scanner.configure()
             pollen, wm = bootstrapping_scanner.poll(config, "")
             assert pollen == []
 
-    @patch("whatsapp.shutil.which", return_value="/usr/local/bin/whatsapp-cli")
+    @patch("whatsapp.ensure_tool", return_value=True)
     @patch("whatsapp.save_snapshot")
-    def test_pollen_schema(self, _save, _which, scanner):
+    def test_pollen_schema(self, _save, _ensure, scanner):
         scanner._cli_available = None
         with patch.object(scanner, "_wa", return_value=json.dumps(SAMPLE_MESSAGES)):
             config = scanner.configure()
