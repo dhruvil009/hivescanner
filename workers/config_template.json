@@ -21,13 +21,6 @@
       "watch_mentions": true,
       "max_items_per_query": 20
     },
-    "slack": {
-      "enabled": false,
-      "token_env": "SLACK_TOKEN",
-      "channels": [],
-      "watch_dms": true,
-      "watch_mentions": true
-    },
     "calendar": {
       "enabled": false,
       "provider": "google",

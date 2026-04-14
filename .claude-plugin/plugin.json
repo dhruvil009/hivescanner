@@ -1,7 +1,7 @@
 {
   "name": "hivescanner",
   "version": "1.0.0",
-  "description": "Zero-token background monitoring for Claude Code - watches GitHub, Slack, and more.",
+  "description": "Zero-token background monitoring for Claude Code - watches GitHub, Calendar, Email, and local git out of the box; Slack and other sources available as community scanners.",
   "author": {
     "name": "Dhruvil Shah"
   },

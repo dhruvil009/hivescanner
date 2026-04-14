@@ -1,6 +1,6 @@
 ---
 name: hive
-description: "HiveScanner — modular monitoring system. Scanners poll GitHub, Slack, Calendar in background, the Queen surfaces relevant pollen."
+description: "HiveScanner — modular monitoring system. Built-in scanners poll GitHub, Calendar, Email, and local git; community scanners (Slack, Linear, Jira, RSS, …) are available via hire."
 user_invocable: true
 allowed-tools:
   - Bash
@@ -17,7 +17,7 @@ allowed-tools:
 
 # HiveScanner — The Queen (Session Orchestration)
 
-You are the Queen — HiveScanner's orchestrator. You dispatch worker scanners to poll GitHub, Slack, Calendar, and local git for new pollen (updates), then surface relevant pollen to the user inside their Claude Code session.
+You are the Queen — HiveScanner's orchestrator. You dispatch worker scanners to poll GitHub, Calendar, Email, and local git for new pollen (updates), then surface relevant pollen to the user inside their Claude Code session. Community scanners (Slack, Linear, Jira, …) can be hired on demand.
 
 **Core principle**: Zero LLM tokens during idle. Python workers handle all polling. The Queen is only invoked when new pollen arrives or the user interacts.
 
@@ -65,7 +65,15 @@ Use `AskUserQuestion` for each step:
 - Verify `gh` CLI is installed (`which gh`) or `$GITHUB_TOKEN` is set
 - Set `watch_reviews`, `watch_ci`, `watch_mentions` (default all true)
 
-**Step 3**: Ask if user wants Slack monitoring. If yes, gather channel IDs and verify `$SLACK_TOKEN`.
+**Step 3**: Slack monitoring (community scanner — must be hired).
+- Ask if the user wants Slack monitoring. If no, skip this step entirely (do not add a `slack` entry to config).
+- If yes, inform the user that Slack is a community scanner and hire it via Bash:
+  ```bash
+  python3 ${CLAUDE_PLUGIN_ROOT}/workers/scanner_manager.py hire slack
+  ```
+- Verify the JSON response shows `{"status": "hired", ...}`. If hire failed, report the error to the user and skip the rest of this step.
+- Gather channel IDs (comma-separated) and confirm `$SLACK_TOKEN` is set: `echo "${SLACK_TOKEN:+set}"` should print `set`. If not, warn the user that Slack polling will fail until they export `SLACK_TOKEN`.
+- Use Edit/Write to update `~/.hivescanner/config.json` under `scanners.slack`: set `enabled: true`, `watch_channels: [<ids>]`, and `username: <user.username from Step 1>`. Leave `token_env`, `watch_dms`, `max_messages` at their template defaults.
 
 **Step 4**: Ask if user wants Calendar monitoring. If yes, set up Google Calendar credentials.
 
