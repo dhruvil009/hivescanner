@@ -12,6 +12,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
 from dep_installer import preflight
 
 HIVESCANNER_HOME = Path.home() / ".hivescanner"
@@ -26,6 +31,7 @@ MAX_POLLEN_PER_CYCLE = 20
 DEFAULT_POLL_INTERVAL = 300
 
 _shutdown_requested = False
+_META_LOCK_FD = None
 
 
 def handle_signal(signum, frame):
@@ -66,27 +72,60 @@ def is_pid_running(pid: int) -> bool:
 
 
 def acquire_lock() -> None:
+    # POSIX path uses fcntl.flock for atomic mutual exclusion; Windows falls through to legacy O_EXCL logic (P2 #13).
+    global _META_LOCK_FD
     HIVESCANNER_HOME.mkdir(parents=True, exist_ok=True)
+
+    if fcntl is None:
+        try:
+            fd = os.open(str(LOCK_FILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+        except FileExistsError:
+            try:
+                pid = int(LOCK_FILE.read_text().strip())
+            except (ValueError, OSError):
+                pid = -1
+            if is_pid_running(pid):
+                output_error(f"Another scanner loop running (PID {pid})")
+                sys.exit(1)
+            LOCK_FILE.unlink(missing_ok=True)
+            fd = os.open(str(LOCK_FILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+        return
+
+    meta = str(LOCK_FILE) + ".flock"
+    _META_LOCK_FD = os.open(meta, os.O_CREAT | os.O_RDWR, 0o644)
     try:
-        fd = os.open(str(LOCK_FILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.write(fd, str(os.getpid()).encode())
-        os.close(fd)
-    except FileExistsError:
+        fcntl.flock(_META_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
         try:
             pid = int(LOCK_FILE.read_text().strip())
         except (ValueError, OSError):
             pid = -1
-        if is_pid_running(pid):
-            output_error(f"Another scanner loop running (PID {pid})")
-            sys.exit(1)
-        LOCK_FILE.unlink(missing_ok=True)
-        fd = os.open(str(LOCK_FILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.write(fd, str(os.getpid()).encode())
-        os.close(fd)
+        output_error(f"Another scanner loop running (PID {pid})")
+        os.close(_META_LOCK_FD)
+        _META_LOCK_FD = None
+        sys.exit(1)
+
+    LOCK_FILE.write_text(str(os.getpid()))
 
 
 def release_lock() -> None:
+    global _META_LOCK_FD
     LOCK_FILE.unlink(missing_ok=True)
+    if _META_LOCK_FD is not None:
+        if fcntl is not None:
+            try:
+                fcntl.flock(_META_LOCK_FD, fcntl.LOCK_UN)
+            except OSError:
+                pass
+        try:
+            os.close(_META_LOCK_FD)
+        except OSError:
+            pass
+        _META_LOCK_FD = None
 
 
 def load_watermarks() -> dict:
