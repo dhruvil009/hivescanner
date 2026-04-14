@@ -304,8 +304,9 @@ def check_acted_pollen(config: dict, scanners: dict, third_party: dict[str, Path
 
 def poll_all(config: dict, scanners: dict, third_party: dict[str, Path], watermarks: dict) -> tuple[list, list]:
     """Poll all enabled scanners. Returns (pollen, acted_ids)."""
-    all_pollen = []
-    new_watermarks = {}
+    tagged_pollen: list[tuple[str, dict]] = []
+    new_watermarks: dict[str, str] = {}
+    contributed_counts: dict[str, int] = {}
 
     for scanner_name, scanner_config in config.get("scanners", {}).items():
         if not scanner_config.get("enabled"):
@@ -313,28 +314,41 @@ def poll_all(config: dict, scanners: dict, third_party: dict[str, Path], waterma
 
         watermark = watermarks.get(scanner_name, "1970-01-01T00:00:00Z")
 
+        pollen = None
+        new_wm = None
         if scanner_name in scanners:
             try:
                 pollen, new_wm = scanners[scanner_name].poll(scanner_config, watermark)
-                new_watermarks[scanner_name] = new_wm
-                all_pollen.extend(pollen)
             except Exception as e:
                 print(f"[scanner] Error polling {scanner_name}: {e}", file=sys.stderr)
-
+                continue
         elif scanner_name in third_party:
             try:
                 pollen, new_wm = _poll_sandboxed(third_party[scanner_name], scanner_config, watermark)
-                new_watermarks[scanner_name] = new_wm
-                all_pollen.extend(pollen)
             except Exception as e:
                 print(f"[scanner] Error polling sandboxed {scanner_name}: {e}", file=sys.stderr)
+                continue
+        else:
+            continue
 
-    # Batch cap
-    if len(all_pollen) > MAX_POLLEN_PER_CYCLE:
-        all_pollen = all_pollen[:MAX_POLLEN_PER_CYCLE]
-        # DON'T advance watermarks — remaining re-fetched next cycle
-    else:
-        watermarks.update(new_watermarks)
+        new_watermarks[scanner_name] = new_wm
+        contributed_counts[scanner_name] = len(pollen)
+        for item in pollen:
+            tagged_pollen.append((scanner_name, item))
+
+    if len(tagged_pollen) > MAX_POLLEN_PER_CYCLE:
+        tagged_pollen = tagged_pollen[:MAX_POLLEN_PER_CYCLE]
+
+    kept_counts: dict[str, int] = {}
+    for scanner_name, _ in tagged_pollen:
+        kept_counts[scanner_name] = kept_counts.get(scanner_name, 0) + 1
+
+    for scanner_name, new_wm in new_watermarks.items():
+        # Only advance watermark when all of this scanner's items survived the cap.
+        if kept_counts.get(scanner_name, 0) == contributed_counts.get(scanner_name, 0):
+            watermarks[scanner_name] = new_wm
+
+    all_pollen = [item for _, item in tagged_pollen]
 
     acted_ids = check_acted_pollen(config, scanners, third_party)
     return all_pollen, acted_ids
