@@ -28,6 +28,21 @@ REMEDIATION_PATTERNS = [
     re.compile(r"\bsteps?\s*(to|for)\b", re.IGNORECASE),
     re.compile(r"\b(rollback|revert|cherry.pick|backout|hotfix)\b", re.IGNORECASE),
     re.compile(r"```"),
+    # Infra-ops verbs on infrastructure nouns — catches "restart the pod",
+    # "bounce the service", "roll the deployment", "flip the feature flag".
+    re.compile(r"\b(restart|reboot|bounce|roll|rollout|redeploy|deploy|scale|drain|"
+               r"cordon|evict|kill|terminate|toggle|flip|disable|enable|patch|hotpatch)\b"
+               r".*\b(service|services|pod|pods|container|containers|deployment|deployments|"
+               r"node|nodes|cluster|clusters|job|jobs|worker|workers|db|database|databases|"
+               r"server|servers|instance|instances|app|apps|build|release|prod|production|"
+               r"staging|canary|flag|flags|feature)\b", re.IGNORECASE),
+    # Accessing live systems — catches "log into prod", "ssh to the box", "shell into the pod".
+    re.compile(r"\b(ssh|log\s*in(?:to)?|login|shell\s*into|exec\s*into)\b"
+               r".*\b(prod|production|server|servers|box|host|node|instance|db|database|pod|container)\b",
+               re.IGNORECASE),
+    # Shell / infrastructure investigation commands — catches "grep the logs", "kubectl get pods".
+    re.compile(r"\b(grep|tail|kubectl|docker|helm|terraform|systemctl|journalctl|aws|gcloud)\b",
+               re.IGNORECASE),
 ]
 
 TEMPLATES = {

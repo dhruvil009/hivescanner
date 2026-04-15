@@ -75,6 +75,33 @@ class TestContentSafety:
     def test_unsafe_code_block(self):
         assert triage_responder._content_safe("```\nsome code\n```") is False
 
+    def test_unsafe_restart_the_pod(self):
+        assert triage_responder._content_safe("just restart the pod") is False
+
+    def test_unsafe_bounce_the_service(self):
+        assert triage_responder._content_safe("can you bounce the service?") is False
+
+    def test_unsafe_roll_the_deployment(self):
+        assert triage_responder._content_safe("we should roll the deployment") is False
+
+    def test_unsafe_log_into_prod(self):
+        assert triage_responder._content_safe("log into prod and check the logs") is False
+
+    def test_unsafe_grep(self):
+        assert triage_responder._content_safe("grep the logs for the error") is False
+
+    def test_unsafe_flip_feature_flag(self):
+        assert triage_responder._content_safe("flip the feature flag off") is False
+
+    def test_unsafe_kubectl(self):
+        assert triage_responder._content_safe("kubectl get pods in the cluster") is False
+
+    def test_benign_triage_template_is_safe(self):
+        # Regression: the default template text must still pass.
+        assert triage_responder._content_safe(
+            "[Posted by HiveScanner - oncall triage assist]\n\nRelated context:\nhttps://example.com"
+        ) is True
+
 
 class TestAutonomy:
     def test_toggle(self, tmp_hivescanner):
