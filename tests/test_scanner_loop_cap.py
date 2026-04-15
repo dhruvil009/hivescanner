@@ -75,6 +75,9 @@ class TestPollAllCap:
         assert "b" not in watermarks
 
     def test_overflow_both_at_boundary(self):
+        # Fair round-robin: a(20) + b(5) interleaves a,b,a,b,... then fills
+        # from a once b drains. b fits entirely, so b's watermark advances;
+        # a has items left over, so a's watermark stays pinned.
         scanners = {
             "a": FakeScanner([_item(f"a{i}", "a") for i in range(20)], "2026-04-13T10:00:00Z", "a"),
             "b": FakeScanner([_item(f"b{i}", "b") for i in range(5)], "2026-04-13T11:00:00Z", "b"),
@@ -83,8 +86,31 @@ class TestPollAllCap:
         pollen, _ = scanner_loop.poll_all(_config("a", "b"), scanners, {}, watermarks)
 
         assert len(pollen) == 20
-        assert watermarks.get("a") == "2026-04-13T10:00:00Z"
-        assert "b" not in watermarks
+        sources = [p["source"] for p in pollen]
+        assert sources.count("a") == 15
+        assert sources.count("b") == 5
+        assert "a" not in watermarks
+        assert watermarks["b"] == "2026-04-13T11:00:00Z"
+
+    def test_overflow_fair_share_prevents_starvation(self):
+        # Three scanners each with 20 items; round-robin gives each ~6-7 slots
+        # rather than letting the first one hog all 20.
+        scanners = {
+            "a": FakeScanner([_item(f"a{i}", "a") for i in range(20)], "2026-04-13T10:00:00Z", "a"),
+            "b": FakeScanner([_item(f"b{i}", "b") for i in range(20)], "2026-04-13T11:00:00Z", "b"),
+            "c": FakeScanner([_item(f"c{i}", "c") for i in range(20)], "2026-04-13T12:00:00Z", "c"),
+        }
+        watermarks = {}
+        pollen, _ = scanner_loop.poll_all(_config("a", "b", "c"), scanners, {}, watermarks)
+
+        assert len(pollen) == 20
+        sources = [p["source"] for p in pollen]
+        # Every scanner should get at least one slot.
+        assert sources.count("a") >= 1
+        assert sources.count("b") >= 1
+        assert sources.count("c") >= 1
+        # None of them advance — all three have leftover items.
+        assert watermarks == {}
 
     def test_exception_during_poll(self):
         scanners = {

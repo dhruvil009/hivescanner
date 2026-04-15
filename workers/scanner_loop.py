@@ -354,7 +354,30 @@ def poll_all(config: dict, scanners: dict, third_party: dict[str, Path], waterma
             tagged_pollen.append((scanner_name, item))
 
     if len(tagged_pollen) > MAX_POLLEN_PER_CYCLE:
-        tagged_pollen = tagged_pollen[:MAX_POLLEN_PER_CYCLE]
+        # Round-robin interleave by scanner so no single scanner hogs the cap.
+        # Preserves per-scanner order; scanners with fewer items get served fully.
+        by_scanner: dict[str, list[dict]] = {}
+        order: list[str] = []
+        for scanner_name, item in tagged_pollen:
+            if scanner_name not in by_scanner:
+                order.append(scanner_name)
+                by_scanner[scanner_name] = []
+            by_scanner[scanner_name].append(item)
+
+        interleaved: list[tuple[str, dict]] = []
+        while len(interleaved) < MAX_POLLEN_PER_CYCLE:
+            drained = True
+            for name in order:
+                bucket = by_scanner[name]
+                if bucket:
+                    interleaved.append((name, bucket.pop(0)))
+                    drained = False
+                    if len(interleaved) >= MAX_POLLEN_PER_CYCLE:
+                        break
+            if drained:
+                break
+
+        tagged_pollen = interleaved
 
     kept_counts: dict[str, int] = {}
     for scanner_name, _ in tagged_pollen:
