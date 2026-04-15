@@ -78,8 +78,25 @@ class TestSentryScanner:
 
         assert len(pollen) == 1
         assert pollen[0]["type"] == "sentry_issue"
-        assert pollen[0]["id"] == "sentry-12345"
+        # lastSeen is hashed into the id so new event waves re-surface as fresh pollen.
+        assert pollen[0]["id"].startswith("sentry-12345-")
+        assert len(pollen[0]["id"]) == len("sentry-12345-") + 8
         assert pollen[0]["source"] == "sentry"
+
+    def test_new_event_waves_produce_distinct_ids(self, scanner, monkeypatch):
+        """Same issue seen at different lastSeen times must yield distinct pollen IDs."""
+        monkeypatch.setenv("SENTRY_TOKEN", "test-token")
+        ids = []
+        for last_seen in ("2026-03-15T12:00:00Z", "2026-03-15T14:00:00Z", "2026-03-15T16:00:00Z"):
+            issue = {**SAMPLE_ISSUE, "lastSeen": last_seen}
+            with patch.object(scanner, "_api", return_value=[issue]):
+                pollen, _ = scanner.poll(
+                    {"token_env": "SENTRY_TOKEN", "organization": "my-org", "project": "", "max_items": 20},
+                    "",
+                )
+            ids.append(pollen[0]["id"])
+
+        assert len(set(ids)) == 3, "each new event wave must produce a distinct id"
 
     def test_subscribed_issue_emits_sentry_spike(self, scanner, monkeypatch):
         monkeypatch.setenv("SENTRY_TOKEN", "test-token")

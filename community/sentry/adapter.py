@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -102,7 +103,10 @@ class SentryScanner:
             else:
                 pollen_type = "sentry_issue"
 
-            pollen_id = f"sentry-{issue_id}"
+            # Encode lastSeen into the id so reopened issues and new event
+            # waves surface as fresh pollen instead of being deduped out.
+            transition_hash = hashlib.sha256(last_seen.encode()).hexdigest()[:8]
+            pollen_id = f"sentry-{issue_id}-{transition_hash}"
             pollen.append({
                 "id": pollen_id,
                 "source": "sentry",

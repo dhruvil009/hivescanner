@@ -67,8 +67,28 @@ class TestPagerDutyScanner:
 
         assert len(pollen) == 1
         assert pollen[0]["type"] == "pagerduty_triggered"
-        assert pollen[0]["id"] == "pagerduty-P123ABC"
+        # Status is encoded in the id so triggered→acknowledged→resolved produce distinct pollen.
+        assert pollen[0]["id"] == "pagerduty-P123ABC-triggered"
         assert pollen[0]["source"] == "pagerduty"
+
+    def test_incident_transitions_produce_distinct_ids(self, scanner, monkeypatch):
+        """triggered → acknowledged → resolved must yield three distinct pollen IDs."""
+        monkeypatch.setenv("PAGERDUTY_TOKEN", "test-token")
+        ids = []
+        for status in ("triggered", "acknowledged", "resolved"):
+            incident = {**SAMPLE_INCIDENT, "status": status}
+            with patch.object(scanner, "_api", return_value={"incidents": [incident]}):
+                pollen, _ = scanner.poll(
+                    {"token_env": "PAGERDUTY_TOKEN", "max_items": 20},
+                    "2026-03-15T00:00:00Z",
+                )
+            ids.append(pollen[0]["id"])
+
+        assert ids == [
+            "pagerduty-P123ABC-triggered",
+            "pagerduty-P123ABC-acknowledged",
+            "pagerduty-P123ABC-resolved",
+        ]
 
     def test_acknowledged_incident_emits_pagerduty_incident(self, scanner, monkeypatch):
         monkeypatch.setenv("PAGERDUTY_TOKEN", "test-token")

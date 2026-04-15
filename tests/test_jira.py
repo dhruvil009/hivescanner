@@ -92,7 +92,9 @@ class TestJiraScanner:
         assert len(pollen) == 1
         p = pollen[0]
         assert p["type"] == "jira_assigned"
-        assert p["id"] == "jira-PROJ-123"
+        # Transition hash is appended to preserve distinct IDs on status changes.
+        assert p["id"].startswith("jira-PROJ-123-")
+        assert len(p["id"]) == len("jira-PROJ-123-") + 8
         assert p["source"] == "jira"
         assert p["author"] == "alice@co.com"
         assert p["author_name"] == "Alice"
@@ -128,7 +130,7 @@ class TestJiraScanner:
         assert len(pollen) == 1
         p = pollen[0]
         assert p["type"] == "jira_mentioned"
-        assert p["id"] == "jira-PROJ-456"
+        assert p["id"].startswith("jira-PROJ-456-")
 
     def test_updated_issue_emits_jira_updated(self, scanner):
         """No assignee match, no mention -> jira_updated."""
@@ -155,7 +157,40 @@ class TestJiraScanner:
         assert len(pollen) == 1
         p = pollen[0]
         assert p["type"] == "jira_updated"
-        assert p["id"] == "jira-PROJ-789"
+        assert p["id"].startswith("jira-PROJ-789-")
+
+    def test_status_transitions_produce_distinct_ids(self, scanner):
+        """Todo → In Progress → Done must yield three distinct pollen IDs so
+        add_pollen's stable-id dedup doesn't swallow subsequent transitions."""
+        base = {
+            "key": "PROJ-900",
+            "fields": {
+                "summary": "Migrate database",
+                "priority": {"name": "High"},
+                "issuetype": {"name": "Task"},
+                "assignee": {"displayName": "Alice", "emailAddress": "alice@co.com"},
+                "description": "",
+            },
+        }
+        ids = []
+        for status_name, updated_ts in [
+            ("Todo", "2026-04-13T10:00:00.000+0000"),
+            ("In Progress", "2026-04-13T11:00:00.000+0000"),
+            ("Done", "2026-04-13T12:00:00.000+0000"),
+        ]:
+            issue = {"key": base["key"], "fields": {**base["fields"],
+                                                    "status": {"name": status_name},
+                                                    "updated": updated_ts}}
+            with patch.dict(os.environ, {"JIRA_TOKEN": "tok"}), \
+                 patch.object(scanner, "_api", return_value={"issues": [issue]}):
+                pollen, _ = scanner.poll(
+                    {"token_env": "JIRA_TOKEN", "domain": "myco.atlassian.net",
+                     "username": "alice@co.com", "max_items": 20},
+                    "2026-04-13T00:00:00Z",
+                )
+            ids.append(pollen[0]["id"])
+
+        assert len(set(ids)) == 3, "each status transition must produce a distinct id"
 
     def test_pollen_schema_has_all_required_keys(self, scanner):
         with patch.dict(os.environ, {"JIRA_TOKEN": "tok123"}), \

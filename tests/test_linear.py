@@ -116,12 +116,46 @@ class TestLinearScanner:
         assert len(pollen) == 1
         p = pollen[0]
         assert p["type"] == "issue_assigned"
-        assert p["id"] == "linear-ENG-101"
+        # Transition hash is appended to guard against stable-id dedup eating
+        # subsequent state changes. Shape: linear-<identifier>-<hash8>.
+        assert p["id"].startswith("linear-ENG-101-")
+        assert len(p["id"]) == len("linear-ENG-101-") + 8
         assert p["source"] == "linear"
         assert p["author"] == "alice@example.com"
         assert p["author_name"] == "Alice"
         assert p["group"] == "Issues"
         assert "ENG-101" in p["title"]
+
+    def test_state_transitions_produce_distinct_ids(self, bootstrapped_scanner):
+        """An issue moving Todo → In Progress → Done must emit distinct pollen IDs
+        so add_pollen's stable-id dedup doesn't silently eat later transitions."""
+        bootstrapped_scanner._snapshot["ENG-101"] = "Todo:1"
+
+        # First transition: Todo → In Progress
+        with patch.dict(os.environ, {"LINEAR_API_KEY": "k"}), \
+             patch.object(bootstrapped_scanner, "_graphql", return_value=SAMPLE_GRAPHQL_RESPONSE):
+            pollen1, _ = bootstrapped_scanner.poll(
+                {"api_key_env": "LINEAR_API_KEY", "team_id": ""},
+                "2026-03-15T09:00:00Z",
+            )
+
+        # Second transition: In Progress → Done
+        bootstrapped_scanner._snapshot["ENG-101"] = "In Progress:1"
+        done_response = {
+            "data": {"issues": {"nodes": [
+                {**SAMPLE_GRAPHQL_RESPONSE["data"]["issues"]["nodes"][0],
+                 "state": {"name": "Done"}}
+            ]}}
+        }
+        with patch.dict(os.environ, {"LINEAR_API_KEY": "k"}), \
+             patch.object(bootstrapped_scanner, "_graphql", return_value=done_response):
+            pollen2, _ = bootstrapped_scanner.poll(
+                {"api_key_env": "LINEAR_API_KEY", "team_id": ""},
+                "2026-03-15T09:00:00Z",
+            )
+
+        assert len(pollen1) == 1 and len(pollen2) == 1
+        assert pollen1[0]["id"] != pollen2[0]["id"], "state transitions must yield distinct ids"
 
     def test_state_change_emits_issue_updated(self, bootstrapped_scanner):
         """When an already-known issue changes state, emit issue_updated."""
@@ -139,6 +173,7 @@ class TestLinearScanner:
         assert len(pollen) == 1
         p = pollen[0]
         assert p["type"] == "issue_updated"
+        assert p["id"].startswith("linear-ENG-101-")
         assert p["metadata"]["state"] == "In Progress"
         assert p["metadata"]["prev_state"] == "Todo:1"
 

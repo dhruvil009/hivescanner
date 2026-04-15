@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import sys
@@ -93,7 +94,13 @@ class JiraScanner:
             else:
                 pollen_type = "jira_updated"
 
-            pollen_id = f"jira-{key}"
+            # Encode the transition signal into the id so each status/update
+            # surfaces as a distinct pollen item. `updated` bumps on every
+            # field change; falling back to status guarantees a signal when
+            # `updated` is missing.
+            updated = fields.get("updated", "") or status
+            transition_hash = hashlib.sha256(updated.encode()).hexdigest()[:8]
+            pollen_id = f"jira-{key}-{transition_hash}"
             pollen.append({
                 "id": pollen_id,
                 "source": "jira",

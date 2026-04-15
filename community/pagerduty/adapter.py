@@ -81,8 +81,10 @@ class PagerDutyScanner:
             else:
                 pollen_type = "pagerduty_incident"
 
+            # Include status in the id so triggered → acknowledged → resolved
+            # transitions each produce distinct pollen that survives add_pollen dedup.
             pollen.append({
-                "id": f"pagerduty-{incident_id}",
+                "id": f"pagerduty-{incident_id}-{status or 'unknown'}",
                 "source": "pagerduty",
                 "type": pollen_type,
                 "title": title[:100],

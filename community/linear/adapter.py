@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -142,8 +143,11 @@ class LinearScanner:
                 continue
 
             assignee = node.get("assignee", {}) or {}
+            # Include a transition hash in the ID so each state change surfaces
+            # as a distinct pollen item (otherwise add_pollen dedupes on stable ID).
+            transition_hash = hashlib.sha256(snapshot_val.encode()).hexdigest()[:8]
             pollen.append({
-                "id": f"linear-{issue_id}",
+                "id": f"linear-{issue_id}-{transition_hash}",
                 "source": "linear",
                 "type": "issue_assigned" if not prev else "issue_updated",
                 "title": f"{issue_id}: {node.get('title', '')}"[:100],
