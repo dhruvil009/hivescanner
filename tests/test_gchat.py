@@ -1,5 +1,6 @@
 """Tests for gchat scanner."""
 
+import importlib.util
 import json
 import os
 import sys
@@ -7,7 +8,18 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers", "sources"))
+# Load gchat.py by absolute path under name "gchat" so existing
+# @patch("gchat.X") decorators resolve. Add workers/ (NOT workers/sources/)
+# so the scanner's sibling imports resolve without shadowing stdlib.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers"))
+_GC_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "workers", "sources", "gchat.py"
+)
+_spec = importlib.util.spec_from_file_location("gchat", _GC_PATH)
+_gc_mod = importlib.util.module_from_spec(_spec)
+sys.modules["gchat"] = _gc_mod
+_spec.loader.exec_module(_gc_mod)
+GChatScanner = _gc_mod.GChatScanner
 
 
 SAMPLE_DM_MESSAGE = {
@@ -45,7 +57,6 @@ REQUIRED_POLLEN_KEYS = {
 def scanner():
     with patch("gchat.load_snapshot", return_value={}), \
          patch("gchat.save_snapshot"):
-        from gchat import GChatScanner
         return GChatScanner()
 
 
@@ -54,7 +65,6 @@ def bootstrapped_scanner():
     """Scanner that has already been bootstrapped (has prior snapshot data)."""
     with patch("gchat.load_snapshot", return_value={"existing": "data"}), \
          patch("gchat.save_snapshot"):
-        from gchat import GChatScanner
         return GChatScanner()
 
 

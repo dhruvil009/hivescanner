@@ -1,5 +1,6 @@
 """Tests for weather scanner."""
 
+import importlib.util
 import json
 import os
 import sys
@@ -8,7 +9,19 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers", "sources"))
+# Load weather.py by absolute path under the name "weather" so existing
+# @patch("weather.X") decorators resolve. Add workers/ (NOT workers/sources/)
+# to sys.path so the scanner's sibling imports (dep_installer, snapshot_store)
+# resolve. Never add workers/sources/ — it shadows stdlib email/calendar.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers"))
+_WEATHER_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "workers", "sources", "weather.py"
+)
+_spec = importlib.util.spec_from_file_location("weather", _WEATHER_PATH)
+_weather_mod = importlib.util.module_from_spec(_spec)
+sys.modules["weather"] = _weather_mod
+_spec.loader.exec_module(_weather_mod)
+WeatherScanner = _weather_mod.WeatherScanner
 
 
 SAMPLE_WTTR_RESPONSE = {
@@ -47,7 +60,6 @@ def _make_urlopen_response(data: dict):
 def scanner():
     with patch("weather.load_snapshot", return_value={}), \
          patch("weather.save_snapshot"):
-        from weather import WeatherScanner
         return WeatherScanner()
 
 

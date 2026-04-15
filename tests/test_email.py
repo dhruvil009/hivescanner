@@ -14,9 +14,10 @@ _EMAIL_PATH = os.path.join(
     os.path.dirname(__file__), "..", "workers", "sources", "email.py"
 )
 
-# Also add workers/ to sys.path so snapshot_store can be found
+# Add workers/ to sys.path so the scanner's sibling imports (dep_installer,
+# snapshot_store) resolve. Do NOT add workers/sources/ — it shadows stdlib
+# packages (email, calendar) and breaks strptime, which imports calendar.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers", "sources"))
 
 # Load the module once under a unique name so patches can target it
 _spec = importlib.util.spec_from_file_location("email_scanner", _EMAIL_PATH)
@@ -141,6 +142,63 @@ class TestEmailScanner:
         assert pollen == []
         # After first poll, bootstrapped should be True
         assert scanner._bootstrapped is True
+
+    def test_rfc2822_date_filtered_by_iso_watermark(self, bootstrapped_scanner):
+        """Gmail returns RFC 2822 dates; watermark is ISO-8601. After the fix,
+        parsing both formats must yield correct filtering."""
+        scanner = bootstrapped_scanner
+        scanner._cli_available = True
+
+        old_msg = {
+            "id": "old001",
+            "from": "x@example.com",
+            "subject": "old",
+            "date": "Sun, 15 Mar 2026 08:00:00 +0000",  # RFC 2822, BEFORE watermark
+            "snippet": "",
+        }
+        new_msg = {
+            "id": "new001",
+            "from": "y@example.com",
+            "subject": "new",
+            "date": "Sun, 15 Mar 2026 12:00:00 +0000",  # RFC 2822, AFTER watermark
+            "snippet": "",
+        }
+        raw_json = json.dumps([old_msg, new_msg])
+
+        with patch.object(scanner, "_gws", return_value=raw_json), \
+             patch("email_scanner.save_snapshot"):
+            pollen, _ = scanner.poll(
+                scanner.configure(),
+                "2026-03-15T09:00:00Z",  # ISO-8601 watermark
+            )
+
+        ids = [p["id"] for p in pollen]
+        assert "email-new001" in ids
+        assert "email-old001" not in ids
+
+    def test_rfc2822_date_with_utc_comment_parses(self, bootstrapped_scanner):
+        """RFC 2822 sometimes includes a trailing '(UTC)' comment."""
+        scanner = bootstrapped_scanner
+        scanner._cli_available = True
+
+        msg = {
+            "id": "msg001",
+            "from": "x@example.com",
+            "subject": "with comment",
+            "date": "Mon, 16 Mar 2026 10:00:00 +0000 (UTC)",
+            "snippet": "",
+        }
+        raw_json = json.dumps([msg])
+
+        with patch.object(scanner, "_gws", return_value=raw_json), \
+             patch("email_scanner.save_snapshot"):
+            pollen, _ = scanner.poll(
+                scanner.configure(),
+                "2026-03-15T09:00:00Z",
+            )
+
+        assert len(pollen) == 1
+        assert pollen[0]["id"] == "email-msg001"
 
     def test_pollen_schema_has_all_required_keys(self, bootstrapped_scanner):
         scanner = bootstrapped_scanner

@@ -8,12 +8,18 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-# Insert path BEFORE importing to avoid stdlib calendar conflict
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers", "sources"))
-
-# Import the module under a non-conflicting alias, then grab the class
-import importlib
-_cal_mod = importlib.import_module("calendar")
+# Load calendar.py by absolute path so we can alias it without shadowing the
+# stdlib `calendar` module (which strptime needs for weekday names). Adding
+# workers/sources/ to sys.path breaks other tests that run later.
+import importlib.util
+_CAL_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "workers", "sources", "calendar.py"
+)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers"))
+_spec = importlib.util.spec_from_file_location("calendar_scanner", _CAL_PATH)
+_cal_mod = importlib.util.module_from_spec(_spec)
+sys.modules["calendar_scanner"] = _cal_mod
+_spec.loader.exec_module(_cal_mod)
 CalendarScanner = _cal_mod.CalendarScanner
 
 
@@ -43,7 +49,7 @@ _REQUIRED_POLLEN_KEYS = {
 
 class TestCalendarScanner:
 
-    @patch("calendar.load_snapshot", return_value={})
+    @patch("calendar_scanner.load_snapshot", return_value={})
     def test_configure_returns_expected_defaults(self, mock_load):
         scanner = CalendarScanner()
         config = scanner.configure()
@@ -52,16 +58,16 @@ class TestCalendarScanner:
         assert config["max_events"] == 20
         assert config["calendars"] == []
 
-    @patch("calendar.save_snapshot")
-    @patch("calendar.load_snapshot", return_value={})
+    @patch("calendar_scanner.save_snapshot")
+    @patch("calendar_scanner.load_snapshot", return_value={})
     def test_poll_returns_empty_when_gws_not_installed(self, mock_load, mock_save):
         scanner = CalendarScanner()
         with patch("shutil.which", return_value=None):
             pollen, wm = scanner.poll(scanner.configure(), "")
         assert pollen == []
 
-    @patch("calendar.save_snapshot")
-    @patch("calendar.load_snapshot", return_value={})
+    @patch("calendar_scanner.save_snapshot")
+    @patch("calendar_scanner.load_snapshot", return_value={})
     def test_poll_returns_empty_when_no_events(self, mock_load, mock_save):
         scanner = CalendarScanner()
         scanner._bootstrapped = True
@@ -70,8 +76,8 @@ class TestCalendarScanner:
             pollen, wm = scanner.poll(scanner.configure(), "")
         assert pollen == []
 
-    @patch("calendar.save_snapshot")
-    @patch("calendar.load_snapshot", return_value={})
+    @patch("calendar_scanner.save_snapshot")
+    @patch("calendar_scanner.load_snapshot", return_value={})
     def test_meeting_reminder_emitted_within_window(self, mock_load, mock_save):
         scanner = CalendarScanner()
         scanner._bootstrapped = True
@@ -89,8 +95,8 @@ class TestCalendarScanner:
         ids = [p["id"] for p in reminders]
         assert any("calendar-reminder-evt1-10" in pid for pid in ids)
 
-    @patch("calendar.save_snapshot")
-    @patch("calendar.load_snapshot", return_value={})
+    @patch("calendar_scanner.save_snapshot")
+    @patch("calendar_scanner.load_snapshot", return_value={})
     def test_bootstrap_silence_first_poll_emits_no_pollen(self, mock_load, mock_save):
         """First poll should snapshot events without emitting any pollen."""
         scanner = CalendarScanner()
@@ -107,8 +113,8 @@ class TestCalendarScanner:
         # After first poll, bootstrapped should be True
         assert scanner._bootstrapped is True
 
-    @patch("calendar.save_snapshot")
-    @patch("calendar.load_snapshot", return_value={})
+    @patch("calendar_scanner.save_snapshot")
+    @patch("calendar_scanner.load_snapshot", return_value={})
     def test_pollen_schema_has_all_required_keys(self, mock_load, mock_save):
         scanner = CalendarScanner()
         scanner._bootstrapped = True
@@ -124,8 +130,8 @@ class TestCalendarScanner:
             missing = _REQUIRED_POLLEN_KEYS - set(item.keys())
             assert not missing, f"Pollen missing keys: {missing}"
 
-    @patch("calendar.save_snapshot")
-    @patch("calendar.load_snapshot", return_value={})
+    @patch("calendar_scanner.save_snapshot")
+    @patch("calendar_scanner.load_snapshot", return_value={})
     def test_event_changed_detection(self, mock_load, mock_save):
         scanner = CalendarScanner()
         scanner._bootstrapped = True

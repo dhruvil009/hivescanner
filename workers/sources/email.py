@@ -18,6 +18,35 @@ except ImportError:
     from snapshot_store import load_snapshot, save_snapshot
 
 
+def _parse_email_date(s: str) -> datetime | None:
+    """Parse a message date (RFC 2822 from Gmail) or watermark (ISO-8601).
+
+    Avoids importing stdlib `email.utils` because this file is named email.py
+    and shadows the stdlib package whenever workers/sources/ is on sys.path.
+    """
+    if not s:
+        return None
+    s = s.strip()
+    # RFC 2822 sometimes has a "(UTC)" trailing comment; drop it.
+    if "(" in s:
+        s = s.split(" (", 1)[0].strip()
+    for fmt in ("%a, %d %b %Y %H:%M:%S %z", "%d %b %Y %H:%M:%S %z"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    iso = s
+    if iso.endswith("Z"):
+        iso = iso[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
+
+
 class EmailScanner:
     name = "email"
 
@@ -97,9 +126,14 @@ class EmailScanner:
             if is_bootstrap:
                 continue
 
-            # Watermark filtering
-            if date and watermark and date <= watermark:
-                continue
+            # Watermark filtering — Gmail sends RFC 2822, watermark is ISO-8601.
+            # Lexicographic comparison between the two formats is meaningless,
+            # so parse both to datetimes before comparing.
+            if date and watermark:
+                msg_dt = _parse_email_date(date)
+                wm_dt = _parse_email_date(watermark)
+                if msg_dt and wm_dt and msg_dt <= wm_dt:
+                    continue
 
             # Pollen type detection
             sender_lower = sender.lower()

@@ -1,5 +1,6 @@
 """Tests for WhatsApp scanner."""
 
+import importlib.util
 import json
 import os
 import sys
@@ -7,14 +8,24 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers", "sources"))
+# Load whatsapp.py by absolute path under name "whatsapp" so existing
+# @patch("whatsapp.X") decorators resolve. Add workers/ (NOT workers/sources/)
+# so the scanner's sibling imports resolve without shadowing stdlib.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers"))
+_WA_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "workers", "sources", "whatsapp.py"
+)
+_spec = importlib.util.spec_from_file_location("whatsapp", _WA_PATH)
+_wa_mod = importlib.util.module_from_spec(_spec)
+sys.modules["whatsapp"] = _wa_mod
+_spec.loader.exec_module(_wa_mod)
+WhatsAppScanner = _wa_mod.WhatsAppScanner
 
 
 @pytest.fixture
 def scanner():
     with patch("whatsapp.load_snapshot", return_value={}), \
          patch("whatsapp.save_snapshot"):
-        from whatsapp import WhatsAppScanner
         s = WhatsAppScanner()
         # Mark as already bootstrapped so polls emit pollen by default
         s._bootstrapped = True
@@ -26,7 +37,6 @@ def bootstrapping_scanner():
     """Scanner that has NOT been bootstrapped yet (first poll)."""
     with patch("whatsapp.load_snapshot", return_value={}), \
          patch("whatsapp.save_snapshot"):
-        from whatsapp import WhatsAppScanner
         s = WhatsAppScanner()
         return s
 

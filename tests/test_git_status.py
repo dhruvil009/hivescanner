@@ -1,13 +1,24 @@
 """Tests for git_status scanner."""
 
+import importlib.util
 import os
 import subprocess
 import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers", "sources"))
-from git_status import GitStatusScanner
+# Load git_status.py by absolute path so we don't need workers/sources/ on
+# sys.path (which would shadow stdlib email/calendar). Add workers/ for the
+# scanner's sibling imports (snapshot_store etc.).
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workers"))
+_GS_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "workers", "sources", "git_status.py"
+)
+_spec = importlib.util.spec_from_file_location("git_status", _GS_PATH)
+_gs_mod = importlib.util.module_from_spec(_spec)
+sys.modules["git_status"] = _gs_mod
+_spec.loader.exec_module(_gs_mod)
+GitStatusScanner = _gs_mod.GitStatusScanner
 
 
 @pytest.fixture
