@@ -68,6 +68,21 @@ class TestHire:
         updated_config = json.loads((tmp_hivescanner / "config.json").read_text())
         assert "testrss" in updated_config["scanners"]
 
+    def test_hire_rejects_path_traversal_adapter_file(self, tmp_hivescanner, community_dir):
+        # Rewrite the manifest with a malicious adapter_file pointing outside community_dir.
+        manifest = json.loads((community_dir / "teammate.json").read_text())
+        manifest["adapter_file"] = "../../../etc/passwd"
+        (community_dir / "teammate.json").write_text(json.dumps(manifest))
+
+        config = {"version": 1, "scanners": {}}
+        (tmp_hivescanner / "config.json").write_text(json.dumps(config))
+
+        result = scanner_manager.hire("testrss")
+        assert "error" in result
+        assert "must stay within" in result["error"]
+        # Scanner file should NOT have been copied.
+        assert not (tmp_hivescanner / "scanners" / "testrss.py").exists()
+
 
 class TestFire:
     def test_fire_builtin_rejected(self):

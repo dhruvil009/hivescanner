@@ -84,6 +84,14 @@ def hire(name: str) -> dict:
 
     scanner_file = manifest.get("adapter_file", "adapter.py")
     source_scanner = community_dir / scanner_file
+    # Defense-in-depth: community manifests are semi-trusted, but a malicious
+    # adapter_file like "../../../etc/foo.py" would copy from outside community/.
+    try:
+        source_resolved = source_scanner.resolve(strict=False)
+        community_resolved = community_dir.resolve(strict=False)
+        source_resolved.relative_to(community_resolved)
+    except ValueError:
+        return {"error": f"Invalid adapter_file '{scanner_file}': must stay within community/{name}/"}
     if not source_scanner.exists():
         return {"error": f"Scanner file '{scanner_file}' not found in community/{name}/"}
 
