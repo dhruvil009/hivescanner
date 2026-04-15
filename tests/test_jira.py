@@ -105,6 +105,107 @@ class TestJiraScanner:
         assert p["metadata"]["priority"] == "High"
         assert p["metadata"]["issue_type"] == "Bug"
 
+    def test_adf_description_text_mention_detected(self, scanner):
+        """Jira v3 returns description as ADF JSON (dict). A username embedded
+        in a text node must still trigger jira_mentioned."""
+        adf_description = {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {"type": "paragraph", "content": [
+                    {"type": "text", "text": "Please check with alice@co.com about rollout"},
+                ]},
+            ],
+        }
+        issue = {
+            "key": "PROJ-456",
+            "fields": {
+                "summary": "Review deployment",
+                "status": {"name": "Open"},
+                "priority": {"name": "Medium"},
+                "issuetype": {"name": "Task"},
+                "assignee": {"displayName": "Bob", "emailAddress": "bob@co.com"},
+                "description": adf_description,
+            },
+        }
+        with patch.dict(os.environ, {"JIRA_TOKEN": "tok123"}), \
+             patch.object(scanner, "_api") as mock_api:
+            mock_api.return_value = {"issues": [issue]}
+            pollen, _ = scanner.poll(
+                {"token_env": "JIRA_TOKEN", "domain": "myco.atlassian.net",
+                 "username": "alice@co.com", "max_items": 20},
+                "2026-03-15T09:00:00Z",
+            )
+
+        assert pollen[0]["type"] == "jira_mentioned"
+
+    def test_adf_mention_node_detected(self, scanner):
+        """A @-mention in ADF is a `mention` node with attrs.text (display name)
+        and attrs.id (account id). Matching either should trigger jira_mentioned."""
+        adf_description = {
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [
+                    {"type": "text", "text": "Hi "},
+                    {"type": "mention", "attrs": {"id": "5b10ac8d82e05b22cc7d4ef5", "text": "@alice"}},
+                    {"type": "text", "text": " please review"},
+                ]},
+            ],
+        }
+        issue = {
+            "key": "PROJ-457",
+            "fields": {
+                "summary": "Review",
+                "status": {"name": "Open"},
+                "priority": {"name": "Medium"},
+                "issuetype": {"name": "Task"},
+                "assignee": {"displayName": "Bob", "emailAddress": "bob@co.com"},
+                "description": adf_description,
+            },
+        }
+        with patch.dict(os.environ, {"JIRA_TOKEN": "tok123"}), \
+             patch.object(scanner, "_api") as mock_api:
+            mock_api.return_value = {"issues": [issue]}
+            pollen, _ = scanner.poll(
+                {"token_env": "JIRA_TOKEN", "domain": "myco.atlassian.net",
+                 "username": "@alice", "max_items": 20},
+                "2026-03-15T09:00:00Z",
+            )
+
+        assert pollen[0]["type"] == "jira_mentioned"
+
+    def test_adf_no_match_falls_through_to_updated(self, scanner):
+        """ADF description without the username should still yield jira_updated."""
+        adf_description = {
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [
+                    {"type": "text", "text": "Some unrelated description"},
+                ]},
+            ],
+        }
+        issue = {
+            "key": "PROJ-458",
+            "fields": {
+                "summary": "Unrelated task",
+                "status": {"name": "Open"},
+                "priority": {"name": "Low"},
+                "issuetype": {"name": "Task"},
+                "assignee": {"displayName": "Charlie", "emailAddress": "charlie@co.com"},
+                "description": adf_description,
+            },
+        }
+        with patch.dict(os.environ, {"JIRA_TOKEN": "tok123"}), \
+             patch.object(scanner, "_api") as mock_api:
+            mock_api.return_value = {"issues": [issue]}
+            pollen, _ = scanner.poll(
+                {"token_env": "JIRA_TOKEN", "domain": "myco.atlassian.net",
+                 "username": "alice@co.com", "max_items": 20},
+                "2026-03-15T09:00:00Z",
+            )
+
+        assert pollen[0]["type"] == "jira_updated"
+
     def test_mentioned_issue_emits_jira_mentioned(self, scanner):
         """Username appears in description -> jira_mentioned."""
         issue = {

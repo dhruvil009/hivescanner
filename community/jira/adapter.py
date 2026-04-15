@@ -13,6 +13,39 @@ from datetime import datetime, timezone
 from typing import Optional
 
 
+def _adf_to_text(node) -> str:
+    """Flatten Atlassian Document Format (ADF) JSON to plain text.
+
+    Jira REST API v3 returns fields.description as an ADF document (a dict
+    with nested content nodes), not a string. This helper walks the tree,
+    collecting visible text from `text` nodes and both the display name and
+    account id from `mention` nodes. Plain strings pass through untouched so
+    legacy/v2 descriptions still work.
+    """
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return ""
+
+    parts: list[str] = []
+    node_type = node.get("type")
+    if node_type == "text":
+        text = node.get("text")
+        if isinstance(text, str):
+            parts.append(text)
+    elif node_type == "mention":
+        attrs = node.get("attrs") or {}
+        for key in ("text", "id"):
+            val = attrs.get(key)
+            if isinstance(val, str):
+                parts.append(val)
+
+    for child in node.get("content") or []:
+        parts.append(_adf_to_text(child))
+
+    return " ".join(p for p in parts if p)
+
+
 class JiraScanner:
     name = "jira"
 
@@ -89,7 +122,7 @@ class JiraScanner:
             assignee_email = assignee.get("emailAddress", "")
             if username and (username == assignee_email or username == assignee_name):
                 pollen_type = "jira_assigned"
-            elif username and isinstance(description, str) and username in description:
+            elif username and username in _adf_to_text(description):
                 pollen_type = "jira_mentioned"
             else:
                 pollen_type = "jira_updated"
