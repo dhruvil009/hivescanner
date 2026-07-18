@@ -6,7 +6,7 @@ HiveScanner stores all configuration in `~/.hivescanner/config.json`. You can ed
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "poll_interval_seconds": 300,
   "queue_retention_days": 7,
   "user": {
@@ -15,7 +15,9 @@ HiveScanner stores all configuration in `~/.hivescanner/config.json`. You can ed
   },
   "autonomy": {
     "enabled": false,
-    "oncall_groups": []
+    "oncall_groups": [],
+    "transports": {},
+    "group_policies": {}
   },
   "scanners": {
     "github": { ... },
@@ -41,8 +43,10 @@ Triage autonomy is off by default. See [Triage Autonomy](/concepts/triage-autono
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `autonomy.enabled` | `false` | Global kill switch for auto-responses |
-| `autonomy.oncall_groups` | `[]` | Groups/channels where auto-responses are allowed |
+| `autonomy.enabled` | `false` | Global kill switch for confirmed triage posts |
+| `autonomy.oncall_groups` | `[]` | Exact destination IDs that may receive a confirmed post |
+| `autonomy.transports` | `{}` | Trusted destination-to-transport configuration (currently Slack) |
+| `autonomy.group_policies` | `{}` | Exact source/group matching, triage enablement, triggers, templates, and cooldown policy |
 
 ## Scanner Configuration
 
@@ -62,8 +66,8 @@ HiveScanner uses environment variables for secrets. Tokens are never stored in c
 
 | Variable | Scanner | How to Get It |
 |----------|---------|---------------|
-| `GITHUB_TOKEN` | GitHub | `gh auth token` or [create a PAT](https://github.com/settings/tokens) |
-| `SLACK_TOKEN` | Slack | [Create a Slack App](/community-scanners/slack#getting-a-token) |
+| `GITHUB_TOKEN` | GitHub | Optional override for the required `gh` CLI; use `gh auth login` or [create a PAT](https://github.com/settings/tokens) |
+| `SLACK_TOKEN` | Slack | [Create a Slack App](/community-scanners/slack) |
 | `LINEAR_API_KEY` | Linear | [Linear API Settings](https://linear.app/settings/api) |
 | `JIRA_TOKEN` | Jira | [Atlassian API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens) |
 | `GITLAB_TOKEN` | GitLab | [GitLab Personal Access Tokens](https://gitlab.com/-/user_settings/personal_access_tokens) |

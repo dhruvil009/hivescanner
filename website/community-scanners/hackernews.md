@@ -1,21 +1,17 @@
 # Hacker News
 
-Monitors Hacker News for top stories matching your keywords and mentions of your username.
+Uses the public [HN Search API by Algolia](https://hn.algolia.com/api) to find sufficiently popular stories matching configured keywords and comments that mention a username.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `hn_top_story` | A top story matches one of your keywords |
-| `hn_mention` | Your username was mentioned in a comment |
+| `hn_top_story` | A matching story meets `min_points` |
+| `hn_mention` | A comment contains an exact username mention |
 
-## Prerequisites
+No credential is required:
 
-None — the Hacker News API is public. No API keys needed.
-
-## Install
-
-```
+```text
 /hive hire hackernews
 ```
 
@@ -25,28 +21,23 @@ None — the Hacker News API is public. No API keys needed.
 {
   "hackernews": {
     "enabled": true,
-    "watch_keywords": ["rust", "claude code", "your-project-name"],
-    "username": "your-hn-username",
+    "watch_keywords": ["specific project"],
+    "username": "your-hn-name",
     "min_points": 100,
-    "max_items": 20
+    "max_items": 100,
+    "max_pages": 3,
+    "keywords_per_poll": 2
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `watch_keywords` | `[]` | Keywords to match against top stories |
-| `username` | `""` | Your HN username (for mention tracking) |
-| `min_points` | `100` | Minimum points threshold for keyword matches |
-| `max_items` | `20` | Max items fetched per poll cycle |
+| `watch_keywords` | `[]` | Up to 20 bounded search terms; case-equivalent duplicates are folded |
+| `username` | `""` | Optional HN username for comment mention searches |
+| `min_points` | `100` | Story points threshold, from 0 to 1,000,000,000 |
+| `max_items` | `100` | Algolia page size, from 1 to 100 |
+| `max_pages` | `3` | Search page cap, from 1 to 5 |
+| `keywords_per_poll` | `2` | Keyword searches rotated through per poll, from 1 to 5 |
 
-## Tips
-
-- Use specific keywords to avoid noise — "Claude Code" is better than "AI"
-- Set `min_points` higher to only see stories that gain traction
-- Leave `username` empty if you only want keyword monitoring
-
-## API Details
-
-Uses the [Hacker News Algolia API](https://hn.algolia.com/api) (public, no authentication).
+Algolia is a search index rather than the canonical Firebase item API, so indexing delay and search semantics remain upstream limitations.

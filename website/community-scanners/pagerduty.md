@@ -1,30 +1,23 @@
 # PagerDuty
 
-Monitors PagerDuty for triggered incidents and alerts.
+Monitors active PagerDuty incidents and tracked incidents' terminal/filter transitions through the [REST API v2](https://developer.pagerduty.com/api-reference/).
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `pagerduty_triggered` | A new incident was triggered |
-| `pagerduty_incident` | An incident update or status change |
+| `pagerduty_triggered` | A matching incident is in triggered state |
+| `pagerduty_incident` | Another active matching incident transition |
+| `pagerduty_resolved` | A tracked incident resolved |
+| `pagerduty_unassigned` | It no longer includes the configured user |
+| `pagerduty_no_longer_matching` | It was deleted or left configured team/service filters |
 
-## Getting a Token
+## Setup
 
-1. Log in to PagerDuty
-2. Go to **My Profile > User Settings**
-3. Under **API Access**, click **Create API User Token**
-4. Copy the token and add to your shell profile:
+Create a PagerDuty API user token with incident read access and export it:
 
 ```bash
-export PAGERDUTY_TOKEN="your-pagerduty-token"
-```
-
-5. Find your User ID: Go to **My Profile** — the user ID is in the URL (e.g., `PXXXXXX`)
-
-## Install
-
-```
+export PAGERDUTY_TOKEN="your-token"
 /hive hire pagerduty
 ```
 
@@ -35,19 +28,22 @@ export PAGERDUTY_TOKEN="your-pagerduty-token"
   "pagerduty": {
     "enabled": true,
     "token_env": "PAGERDUTY_TOKEN",
-    "user_id": "PXXXXXX",
-    "max_items": 20
+    "user_id": "",
+    "team_ids": [],
+    "service_ids": [],
+    "max_items": 100,
+    "max_pages": 10
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `PAGERDUTY_TOKEN` | Environment variable containing your API token |
-| `user_id` | `""` | Your PagerDuty user ID |
-| `max_items` | `20` | Max incidents fetched per poll cycle |
+| `token_env` | `PAGERDUTY_TOKEN` | API-token environment variable |
+| `user_id` | `""` | Optional PagerDuty user/assignee filter |
+| `team_ids` | `[]` | Optional unique team ID filter |
+| `service_ids` | `[]` | Optional unique service ID filter |
+| `max_items` | `100` | Incident page size, from 1 to 100 |
+| `max_pages` | `10` | Page cap, from 1 to 10 |
 
-## API Details
-
-Uses the [PagerDuty REST API v2](https://developer.pagerduty.com/docs/rest-api-v2/rest-api/).
+The scanner retains at most 100 active incidents and checks at most ten disappeared incidents in detail per poll. Use PagerDuty webhooks for larger or latency-sensitive installations.

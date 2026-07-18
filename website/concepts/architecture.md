@@ -14,7 +14,7 @@ Lightweight Python classes that poll external data sources. Each worker implemen
 
 Workers run in the background via `scanner_loop.py`, which manages the poll-sleep-poll cycle, lock files, signal handling, and batch caps (20 items per cycle).
 
-Community scanners run sandboxed in subprocesses for isolation.
+Community scanners run in fresh constrained subprocesses with strict JSON, time, output, environment, and resource limits. On macOS an additional profile denies broad filesystem access; other platforms do not currently provide that filesystem boundary.
 
 ## Pollen
 

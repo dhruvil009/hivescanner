@@ -1,39 +1,21 @@
 # Slack
 
-Monitors Slack channels and DMs for messages, mentions, and thread replies.
+Polls explicit Slack channels and discovered DMs for messages, exact user-ID mentions, and thread replies visible in channel history.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `slack_dm` | A direct message was received |
-| `slack_mention` | You were @mentioned in a channel |
-| `slack_thread_reply` | A reply was posted in a thread you're in |
+| `slack_dm` | A new message in a discovered DM |
+| `slack_mention` | A configured channel message contains `<@user_id>` |
+| `slack_thread_reply` | A thread reply is visible in channel history |
 
-## Getting a Token {#getting-a-token}
+## Setup
 
-You need a Slack Bot User OAuth Token:
-
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
-2. Choose **From scratch**, name it "HiveScanner", and select your workspace
-3. Go to **OAuth & Permissions** in the sidebar
-4. Under **Bot Token Scopes**, add:
-   - `channels:history` — read channel messages
-   - `channels:read` — list channels
-   - `im:history` — read DMs
-   - `im:read` — list DMs
-   - `users:read` — resolve usernames
-5. Click **Install to Workspace** and authorize
-6. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
-7. Add to your shell profile:
+Create a Slack app and bot token with the history/read scopes needed for the channel types you monitor (commonly `channels:history`, `im:history`, and `im:read`), invite it to watched channels, and export the token:
 
 ```bash
-export SLACK_TOKEN="xoxb-xxxxxxxxxxxx"
-```
-
-## Install
-
-```
+export SLACK_TOKEN="xoxb-..."
 /hive hire slack
 ```
 
@@ -44,23 +26,26 @@ export SLACK_TOKEN="xoxb-xxxxxxxxxxxx"
   "slack": {
     "enabled": true,
     "token_env": "SLACK_TOKEN",
-    "watch_channels": ["general", "engineering"],
+    "watch_channels": ["C0123456789"],
     "watch_dms": true,
-    "username": "your-slack-username",
-    "max_messages": 20
+    "user_id": "U0123456789",
+    "max_messages": 15,
+    "history_requests_per_poll": 1,
+    "allow_high_tier_rate_limits": false,
+    "dm_discovery_max_pages": 10
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `SLACK_TOKEN` | Environment variable containing your bot token |
-| `watch_channels` | `[]` | Channel names to monitor |
-| `watch_dms` | `true` | Monitor direct messages |
-| `username` | `""` | Your Slack username (for filtering @mentions) |
-| `max_messages` | `20` | Max messages fetched per poll cycle |
+| `token_env` | `SLACK_TOKEN` | Bot-token environment variable |
+| `watch_channels` | `[]` | Up to 200 unique channel IDs, not names |
+| `watch_dms` | `true` | Discover and include DM conversations |
+| `user_id` | `""` | Exact Slack member ID used for mentions and self-message filtering |
+| `max_messages` | `15` | History page size, from 1 to 15 |
+| `history_requests_per_poll` | `1` | Channel-history requests per poll, from 1 to 50 |
+| `allow_high_tier_rate_limits` | `false` | Permit more than one history request per poll only when your app tier supports it |
+| `dm_discovery_max_pages` | `10` | DM discovery page cap, from 1 to 100 |
 
-## API Details
-
-Uses the [Slack Web API](https://api.slack.com/web) (`conversations.history`, `conversations.list`).
+[Slack currently applies a 1 request/minute, 15-object limit](https://docs.slack.dev/reference/methods/conversations.history/) to some commercially distributed non-Marketplace apps. The conservative defaults match that tier; only opt into higher throughput when your app's actual tier allows it.

@@ -1,36 +1,27 @@
 # Twitter / X
 
-Monitors Twitter/X for mentions and direct messages.
+Polls X API v2 for mentions and, when separately authorized, direct-message events.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `twitter_mention` | You were mentioned in a tweet |
-| `twitter_dm` | A direct message was received |
+| `twitter_mention` | A newly observed mention |
+| `twitter_dm` | A newly observed incoming DM event |
 
-## Getting a Token
+## Setup
 
-1. Go to the [X Developer Portal](https://developer.x.com/en/portal/dashboard)
-2. Apply for a developer account if you don't have one
-3. Create a new **Project** and **App**
-4. Go to **Keys and tokens**
-5. Generate a **Bearer Token**
-6. Add to your shell profile:
+Create an app in the [X Developer Portal](https://developer.x.com/en/portal/dashboard). Mentions use an app bearer token; DMs require a user-context OAuth 2.0 token with the access/scopes X currently requires.
 
 ```bash
-export TWITTER_BEARER_TOKEN="your-bearer-token"
+export TWITTER_BEARER_TOKEN="your-app-bearer-token"
+export TWITTER_USER_TOKEN="your-user-context-token"
+/hive hire twitter
 ```
 
 ::: warning
-The X API free tier has limited access. DM monitoring may require a paid tier.
+Endpoints, retention, quotas, and access tiers are controlled by X and can change. Confirm your current plan grants both endpoints before enabling them.
 :::
-
-## Install
-
-```
-/hive hire twitter
-```
 
 ## Configuration
 
@@ -39,23 +30,26 @@ The X API free tier has limited access. DM monitoring may require a paid tier.
   "twitter": {
     "enabled": true,
     "token_env": "TWITTER_BEARER_TOKEN",
-    "username": "your-twitter-handle",
+    "dm_token_env": "TWITTER_USER_TOKEN",
+    "username": "your-handle",
     "user_id": "your-numeric-user-id",
-    "watch_dms": true,
-    "max_items": 20
+    "watch_mentions": true,
+    "watch_dms": false,
+    "max_items": 100,
+    "max_pages": 10
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `TWITTER_BEARER_TOKEN` | Environment variable containing your bearer token |
-| `username` | `""` | Your Twitter/X handle (without @) |
-| `user_id` | `""` | Your numeric user ID |
-| `watch_dms` | `true` | Monitor direct messages |
-| `max_items` | `20` | Max items fetched per poll cycle |
+| `token_env` | `TWITTER_BEARER_TOKEN` | App bearer-token environment variable for mentions |
+| `dm_token_env` | `TWITTER_USER_TOKEN` | User-context token environment variable for DMs |
+| `username` | `""` | Handle used to resolve a user ID if `user_id` is empty |
+| `user_id` | `""` | Numeric X user ID |
+| `watch_mentions` | `true` | Poll the mentions timeline |
+| `watch_dms` | `false` | Poll DM events; requires the user-context token |
+| `max_items` | `100` | Endpoint page size, from 5 to 100 |
+| `max_pages` | `10` | Mention page cap, from 1 to 10 |
 
-## API Details
-
-Uses the [X API v2](https://developer.x.com/en/docs/x-api).
+Mentions paginate up to the configured cap. DMs intentionally fetch one page per poll and X exposes only its provider retention window (commonly up to 30 days for this endpoint), so prolonged downtime or a very large DM backlog can leave unrecoverable gaps.

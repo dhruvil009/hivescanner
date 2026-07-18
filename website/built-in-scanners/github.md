@@ -1,43 +1,28 @@
 # GitHub Scanner
 
-Monitors your GitHub repositories for PR review requests, CI status changes, @mentions, and issue assignments.
+Monitors GitHub notifications and CI status on your open pull requests. The first successful poll establishes a baseline without replaying old activity.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `review_needed` | A PR needs your review |
-| `ci_failure` | CI failed on a branch you own |
-| `ci_passed` | CI passed (after a previous failure) |
-| `mention` | You were @mentioned in an issue or PR |
-| `issue_assigned` | An issue was assigned to you |
-| `notification` | General GitHub notification |
+| `review_needed` | A notification requests your review |
+| `ci_failure` | CI on one of your open pull requests changed to failing |
+| `ci_passed` | CI recovered after a previously observed failure |
+| `mention` | A notification mentions you or your team |
+| `issue_assigned` | A notification assigns an issue or pull request to you |
+| `notification` | Other watched GitHub activity |
 
 ## Prerequisites
 
-You need **one** of the following:
-
-- **`gh` CLI** (recommended) — inherits your existing GitHub authentication
-- **`GITHUB_TOKEN` environment variable** — a [Personal Access Token](https://github.com/settings/tokens)
-
-### Using the `gh` CLI
-
-1. Install: [cli.github.com](https://cli.github.com/)
-2. Authenticate: `gh auth login`
-3. Verify: `gh auth status`
-
-HiveScanner will use `gh` automatically if it's installed and authenticated.
-
-### Using a Personal Access Token
-
-1. Go to [GitHub Settings > Developer Settings > Personal Access Tokens](https://github.com/settings/tokens)
-2. Click **Generate new token (classic)**
-3. Select scopes: `repo`, `notifications`
-4. Copy the token and add to your shell profile:
+The scanner always invokes the [GitHub CLI (`gh`)](https://cli.github.com/). Install it, then either authenticate with `gh auth login` or provide a token through the configured `token_env`. A token does not replace the `gh` executable.
 
 ```bash
-export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+gh auth login
+gh auth status
 ```
+
+If `GITHUB_TOKEN` is present, HiveScanner passes it to `gh` as `GH_TOKEN` for that invocation and otherwise uses the CLI's existing credential store.
 
 ## Configuration
 
@@ -46,23 +31,33 @@ export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
   "github": {
     "enabled": true,
     "token_env": "GITHUB_TOKEN",
-    "username": "your-github-username",
-    "watch_repos": ["owner/repo1", "owner/repo2"],
+    "username": "your-github-login",
+    "watch_repos": ["owner/repository"],
     "watch_reviews": true,
     "watch_ci": true,
     "watch_mentions": true,
-    "max_items_per_query": 20
+    "watch_assignments": true,
+    "watch_activity": false,
+    "max_items_per_query": 20,
+    "max_notification_pages": 10,
+    "max_pr_pages": 10
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `true` | Enable/disable this scanner |
-| `token_env` | `GITHUB_TOKEN` | Environment variable containing your token |
-| `username` | — | Your GitHub username (for filtering @mentions) |
-| `watch_repos` | `[]` | List of `owner/repo` strings to monitor |
-| `watch_reviews` | `true` | Surface PR review requests |
-| `watch_ci` | `true` | Surface CI pass/fail notifications |
-| `watch_mentions` | `true` | Surface @mention notifications |
-| `max_items_per_query` | `20` | Max items fetched per poll cycle |
+| `enabled` | `true` | Enable this scanner |
+| `token_env` | `GITHUB_TOKEN` | Optional environment variable used by `gh` |
+| `username` | `""` | GitHub login used to identify your pull requests; the global HiveScanner username is the fallback |
+| `watch_repos` | `[]` | Optional unique `owner/repository` allowlist; empty means all accessible repositories |
+| `watch_reviews` | `true` | Surface review-request notifications |
+| `watch_ci` | `true` | Track CI transitions on your open pull requests |
+| `watch_mentions` | `true` | Surface user and team mentions |
+| `watch_assignments` | `true` | Surface assignments |
+| `watch_activity` | `false` | Surface other notification reasons |
+| `max_items_per_query` | `20` | Page size, from 1 to 100 |
+| `max_notification_pages` | `10` | Notification page cap, from 1 to 10 |
+| `max_pr_pages` | `10` | Open-pull-request page cap, from 1 to 10 |
+
+When a result cannot be paged to a safe boundary, the affected component preserves its prior cursor and tries again later instead of silently skipping records.

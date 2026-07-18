@@ -15,9 +15,10 @@ We'd love your help expanding the scanner ecosystem.
 ## Guidelines
 
 - Keep your scanner self-contained — use only Python stdlib when possible
-- List any required CLI tools in `requirements.cli_tools`
+- Keep `requirements.cli_tools` empty; community scanners cannot depend on child CLI tools in the constrained runtime
 - Never hardcode secrets — use `token_env` to reference environment variables
-- Handle errors gracefully — return `([], watermark)` on failure so the watermark doesn't advance
+- Validate config/provider/state strictly, bound requests and output, and return `([], watermark)` on incomplete or ambiguous failure
+- Add focused tests for first-run silence, equal timestamps, pagination exhaustion, rate limits, malformed late pages, redirects, and prompt-like provider text
 - Include a descriptive `teammate.json` so users know what they're installing
 
 ## Scanner Ideas (Contributions Welcome)

@@ -1,38 +1,23 @@
 # Facebook
 
-Monitors Facebook page notifications and Messenger messages.
+Polls Facebook Page Messenger conversations for incoming messages. This adapter does not read the retired Page notifications feed.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `facebook_notification` | A notification on a watched page |
-| `facebook_message` | A Messenger message was received |
+| `facebook_message` | A newly observed incoming message in a watched Page conversation |
 
-## Getting a Token
+## Setup
 
-1. Go to [Meta for Developers](https://developers.facebook.com/)
-2. Create a new app (type: Business)
-3. Add the **Pages** and **Messenger** products
-4. Go to **Tools > Graph API Explorer**
-5. Select your app and generate a **Page Access Token** with permissions:
-   - `pages_read_engagement`
-   - `pages_messaging`
-6. Copy the token and add to your shell profile:
+Create an appropriate Meta app, connect the Messenger product to the Pages you operate, obtain a Page access token with the permissions Meta currently requires for conversation/message access, and export it:
 
 ```bash
-export FACEBOOK_TOKEN="your-page-access-token"
-```
-
-::: tip
-Page access tokens expire. For a long-lived token, exchange it via the [token debugger](https://developers.facebook.com/tools/debug/accesstoken/).
-:::
-
-## Install
-
-```
+export FACEBOOK_PAGE_TOKEN="your-page-access-token"
 /hive hire facebook
 ```
+
+Meta app review, Page roles, token lifetime, permissions, and supported fields vary by app and API version; follow the current [Messenger Platform](https://developers.facebook.com/docs/messenger-platform/) and [Graph API](https://developers.facebook.com/docs/graph-api/) documentation.
 
 ## Configuration
 
@@ -40,20 +25,25 @@ Page access tokens expire. For a long-lived token, exchange it via the [token de
 {
   "facebook": {
     "enabled": true,
-    "token_env": "FACEBOOK_TOKEN",
-    "watch_pages": ["page-id-1"],
-    "max_items": 20
+    "token_env": "FACEBOOK_PAGE_TOKEN",
+    "api_version": "v25.0",
+    "watch_pages": ["numeric-page-id"],
+    "max_items": 100,
+    "max_pages": 3,
+    "pages_per_poll": 2,
+    "conversations_per_page": 4
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `FACEBOOK_TOKEN` | Environment variable containing your page access token |
-| `watch_pages` | `[]` | Facebook page IDs to monitor |
-| `max_items` | `20` | Max items fetched per poll cycle |
+| `token_env` | `FACEBOOK_PAGE_TOKEN` | Page-token environment variable |
+| `api_version` | `v25.0` | Explicit Graph API version |
+| `watch_pages` | `[]` | Up to ten unique numeric Page IDs |
+| `max_items` | `100` | Conversation/message page size, from 1 to 100 |
+| `max_pages` | `3` | Per-resource page cap, from 1 to 5 |
+| `pages_per_poll` | `2` | Pages rotated through per poll, from 1 to 10 |
+| `conversations_per_page` | `4` | Conversations processed for each selected Page, from 1 to 20 |
 
-## API Details
-
-Uses the [Facebook Graph API v19.0](https://developers.facebook.com/docs/graph-api/).
+Polling is deliberately bounded. Use Meta webhooks for high-volume or low-latency Messenger workloads.

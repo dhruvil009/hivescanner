@@ -1,45 +1,32 @@
-# Triage Autonomy
+# Confirmed Triage
 
-HiveScanner can optionally auto-post triage responses to your oncall channels. This is governed by a **6-gate safety system** — every gate must pass before any content is posted.
+HiveScanner can prepare a fixed-template Slack triage draft for eligible pending pollen. Despite the legacy `autonomy` configuration name, the normal `/hive` flow always requires a direct user confirmation before posting.
 
-## The 6 Gates
+## Flow
 
-| Gate | Check | What It Prevents |
-|------|-------|-------------------|
-| 1. Global Kill Switch | `autonomy.enabled` must be `true` | Accidental posts when autonomy is off |
-| 2. Draft Exists | Pollen must have a `triage_draft` in metadata | Posting without prepared content |
-| 3. Group Allowlist | Target group must be in `oncall_groups` | Posts to unauthorized channels |
-| 4. Rate Limiting | Max 3 posts per hour per group | Spam and runaway loops |
-| 5. Content Safety | Draft must not contain remediation language | Dangerous automated advice |
-| 6. Attribution Prefix | Draft must start with `[Posted by HiveScanner]` | Unattributed automated posts |
+1. A pending item must match exactly one trusted `group_policies` entry by source/group rules.
+2. HiveScanner creates a local, 60-minute ticket that binds the source-qualified pollen ID, fixed draft, destination, and policy fingerprint.
+3. The exact draft and destination are shown to the user.
+4. Only an explicit `post #N` confirmation submits that local ticket.
 
-If **any single gate fails**, the post is blocked and logged.
+Scanner text, metadata, URLs, and model-generated prose cannot select a destination, edit a draft, provide a ticket ID, or authorize a post.
 
-## Template-Based Drafts
+## Posting gates
 
-Triage responses are generated from **fixed templates** — not LLMs, not AI-generated text. Templates contain structured prompts like "Can you share the crash ID?" or "What's the impact scope?" — safe, predictable, and auditable.
+Posting fails closed unless all checks pass:
 
-## Content Safety Checks
+- `autonomy.enabled` is exactly `true`.
+- The pollen item still exists uniquely and is pending.
+- The ticket is valid, unexpired, and its group policy is unchanged.
+- The destination is in `oncall_groups` and maps to exactly one enabled triage policy.
+- A real Slack transport and bounded credential environment variable are configured.
+- The fixed draft has the required HiveScanner attribution and contains no remediation instructions, code blocks, operational commands, or recommendations.
+- The group stays below three successful posts and six attempts per hour.
+- The configured per-thread cooldown has elapsed.
+- The deterministic client message ID has no prior success or ambiguous attempt.
 
-Gate 5 uses regex patterns to block content containing:
+Slack link expansion, mentions, Markdown, and unfurling are disabled. Redirects cannot leave `slack.com`, and an ambiguous timeout is never retried automatically.
 
-- Remediation instructions ("try running...", "to fix this...")
-- Code blocks (triple backticks)
-- Suggestions or recommendations ("you should...", "I recommend...")
-- Operational commands ("rollback", "revert", "hotfix")
+## Kill switch and audit
 
-If any pattern matches, the post is blocked.
-
-## Audit Logging
-
-Every triage action — posted or blocked — is logged to `~/.hivescanner/audit.json` with timestamps, gate results, and content previews.
-
-## Kill Switch
-
-If anything goes wrong:
-
-```
-/hive autonomy off
-```
-
-This immediately sets `autonomy.enabled = false`. All 6 gates will fail at Gate 1 until you explicitly re-enable it. The toggle is logged to the audit trail.
+`/hive autonomy off` disables posting immediately. Attempts, successes, failures, blocks, and toggles are retained in the bounded local `~/.hivescanner/audit.json` log.

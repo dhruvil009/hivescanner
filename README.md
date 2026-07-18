@@ -28,12 +28,12 @@ Everything is surfaced inline in your Claude Code session. Dismiss with a word, 
 |---|---|
 | **Zero-token background polling** | Python workers handle all polling. The LLM is never invoked during idle cycles -- zero cost when nothing's happening. |
 | **Bootstrap silence** | On first run, HiveScanner snapshots current state without flooding you with existing notifications. Only genuinely new items are surfaced. |
-| **Watermark-based incremental polling** | Each scanner tracks a high-water mark. Only items newer than the last poll are fetched -- no duplicates, no re-processing. |
+| **Transactional incremental polling** | Scanners combine provider boundaries, bounded overlap, stable IDs, and staged snapshots so delivery failures do not silently advance past unseen data. |
 | **Smart batch grouping** | 5+ items from the same author are collapsed into a single summary instead of overwhelming your screen. |
 | **Pollen lifecycle** | Each notification (pollen) flows through a clear lifecycle: `pending` -> `acknowledged` or `acted`. 7-day retention with automatic pruning. Pending pollen is never pruned. |
-| **Triage autonomy with 6 safety gates** | Optional auto-response for oncall scenarios, gated by: autonomy toggle, draft existence, group allowlist, rate limiting, content safety (no remediation language), and attribution prefix enforcement. |
+| **Confirmed fixed-template triage** | Optional Slack triage drafts are generated locally from fixed templates and require an explicit user confirmation, exact group policy, allowlist, transport, cooldown, rate, content, attribution, and idempotency checks. |
 | **Community scanner ecosystem** | Extend HiveScanner with community-built scanners. Hire and fire them with `/hive hire <name>` and `/hive fire <name>`. Third-party scanners run sandboxed in subprocesses. |
-| **Atomic file writes** | All state files (pollen, watermarks, config) are written atomically via tmp+rename -- crash-safe, no corruption. |
+| **Durable state handoff** | Private, bounded JSON state uses strict parsing, locks, fsync, atomic replacement, and a pending-batch handshake before source watermarks commit. |
 
 ---
 
@@ -81,7 +81,7 @@ HiveScanner launches an interactive wizard that walks you through configuration.
 
 The wizard walks you through the core scanners:
 
-- **GitHub** -- which repos to watch, whether to track reviews, CI, and @mentions (requires `gh` CLI or `$GITHUB_TOKEN`)
+- **GitHub** -- which repos to watch, whether to track reviews, CI, and @mentions (requires the `gh` CLI; `$GITHUB_TOKEN` is optional authentication)
 - **Slack** -- optional; which channels and DMs to monitor (requires `$SLACK_TOKEN`)
 - **Calendar** -- optional; Google Calendar integration for meeting prep and reminders (requires `gws` CLI)
 - **git_status** -- enabled by default; watches local directories for uncommitted changes, stale branches, merge conflicts, and forgotten stashes
@@ -138,7 +138,7 @@ discovered -> pending -> acknowledged (dismissed)
                       -> acted (you handled it externally)
 ```
 
-Pending pollen persists across sessions. Acknowledged/acted pollen is retained for 7 days, then pruned. Pollen is deduplicated by ID -- you'll never see the same notification twice.
+Pending pollen persists across sessions. Acknowledged/acted pollen is retained for 7 days, then pruned. Pollen is deduplicated by the source-qualified item ID; scanners also retain overlap state for delayed provider records.
 
 ### The Hive
 
@@ -220,7 +220,7 @@ HiveScanner's Python workers handle all the polling deterministically. The LLM (
 |---|---|---|---|
 | **Interface** | Messaging apps | Messaging apps | Claude Code (IDE) |
 | **Idle cost** | LLM tokens every cycle | Agent SDK tokens every cycle | Zero tokens |
-| **Security** | Catastrophic (CVEs, malicious skills) | Container isolation | 6-gate safety + sandboxed scanners |
+| **Security** | Catastrophic (CVEs, malicious skills) | Container isolation | Fail-closed scanner boundaries + confirmed triage gates |
 | **Extensibility** | ClawHub (compromised) | None | Community scanner ecosystem |
 | **Architecture** | 500K LOC, 70+ deps | ~500 LOC TypeScript | Minimal Python pollers + plugin manifest |
 | **Install** | Clone + configure gateway | Docker container | `/plugin install` (zero deps) |
@@ -233,9 +233,9 @@ HiveScanner is a Claude Code plugin, not a standalone application. No separate g
 
 ## Community Scanners
 
-HiveScanner is designed to be extended. The core ships with built-in scanners for GitHub and git status -- but the real power is the community scanner ecosystem. If a service has an API, you can build a scanner for it.
+HiveScanner ships seven built-in scanners and can be extended with reviewed community adapters. If a service exposes a usable read API, you can build a scanner for it.
 
-Community scanners are self-contained Python modules that plug into HiveScanner through a sandboxed JSON-over-stdio protocol. They run in isolated subprocesses, never touching the main process, so you can iterate fast without worrying about breaking anything.
+Community scanners are self-contained Python modules connected through a strict JSON-over-stdio protocol. They run outside the main process under bounded time, output, environment, and resource controls; see the platform-specific filesystem caveat in the security section.
 
 **Already available:**
 
@@ -244,7 +244,7 @@ Community scanners are self-contained Python modules that plug into HiveScanner 
 | **Linear** | Monitors Linear issues and status changes | hivescanner-community |
 | **RSS** | Monitors RSS/Atom feeds for new entries | hivescanner-community |
 | **Slack** | Monitors Slack channels and DMs for messages, mentions, and thread replies | hivescanner-community |
-| **Facebook** | Monitors Facebook page notifications and Messenger messages | hivescanner-community |
+| **Facebook** | Polls Messenger conversations for explicitly configured Facebook Pages | hivescanner-community |
 | **Twitter / X** | Monitors Twitter/X mentions and DMs | hivescanner-community |
 | **PagerDuty** | Monitors PagerDuty incidents and triggered alerts | hivescanner-community |
 | **Sentry** | Monitors Sentry issues and error spikes | hivescanner-community |
@@ -281,71 +281,9 @@ class YourScanner:
 
 That's it. `poll` fetches new data and returns a list of pollen dicts plus an updated watermark (an ISO timestamp string used to track what you've already seen). `configure` returns sensible defaults.
 
-### Minimal Example
+### Reference implementation
 
-Here's a complete scanner in ~30 lines -- an RSS feed monitor:
-
-```python
-"""RSS scanner -- minimal community scanner example."""
-
-import hashlib
-import json
-import sys
-import urllib.request
-import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
-
-
-class RssScanner:
-    name = "rss"
-
-    def configure(self) -> dict:
-        return {"enabled": False, "feeds": [], "max_items_per_feed": 5}
-
-    def poll(self, config: dict, watermark: str) -> tuple[list[dict], str]:
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        pollen = []
-
-        for feed_url in config.get("feeds", []):
-            req = urllib.request.Request(feed_url, headers={"User-Agent": "HiveScanner/1.0"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                root = ET.fromstring(resp.read())
-
-            for item in root.findall(".//item")[:config.get("max_items_per_feed", 5)]:
-                title = item.findtext("title") or ""
-                link = item.findtext("link") or ""
-                pub_date = item.findtext("pubDate") or ""
-
-                if pub_date and pub_date <= watermark:
-                    continue
-
-                pollen.append({
-                    "id": f"rss-{hashlib.sha256(f'{feed_url}:{title}'.encode()).hexdigest()[:12]}",
-                    "source": "rss",
-                    "type": "rss_item",
-                    "title": title[:100],
-                    "preview": title[:200],
-                    "discovered_at": now,
-                    "author": "",
-                    "author_name": "",
-                    "group": "RSS",
-                    "url": link,
-                    "metadata": {"feed_url": feed_url},
-                })
-
-        return pollen, now
-
-
-# Required: sandboxed execution entry point
-if __name__ == "__main__" and "--sandboxed" in sys.argv:
-    data = json.loads(sys.stdin.read())
-    scanner = RssScanner()
-    if data["command"] == "poll":
-        result_pollen, wm = scanner.poll(data["config"], data["watermark"])
-        print(json.dumps({"pollen": result_pollen, "watermark": wm}))
-    elif data["command"] == "configure":
-        print(json.dumps({"config": scanner.configure()}))
-```
+Use [`community/rss/adapter.py`](community/rss/adapter.py) as the smallest production reference. A real scanner must do more than fetch and compare timestamp strings: validate config and provider schemas, reject duplicate/nonfinite JSON, cap response sizes and pages, enforce a poll-time budget, bootstrap quietly, retain equal-boundary IDs, preserve the old watermark on partial failure, and treat every provider string as untrusted data.
 
 Every pollen dict must include: `id`, `source`, `type`, `title`, `preview`, `discovered_at`, `author`, `author_name`, `group`, `url`, and `metadata`.
 
@@ -382,8 +320,8 @@ Every community scanner needs a `teammate.json` manifest alongside the adapter:
 | `author` | Your name or handle |
 | `adapter_file` | Python file containing the Scanner class (usually `adapter.py`) |
 | `config_template` | Default configuration merged into `config.json` on hire |
-| `requirements.cli_tools` | CLI tools that must be installed (checked during hire) |
-| `qpm_budget` | Queries-per-minute budget for rate limiting |
+| `requirements.cli_tools` | Must currently be `[]`; constrained community scanners cannot require child CLI processes |
+| `qpm_budget` | Required advisory request-budget metadata; adapters must enforce their own request count, pacing, and provider retry behavior |
 
 ### Sandboxed Execution
 
@@ -394,7 +332,7 @@ Community scanners do **not** run inside the main HiveScanner process. Instead, 
 3. Your scanner prints a JSON response to stdout: `{"pollen": [...], "watermark": "..."}`
 4. The subprocess exits
 
-This means your scanner code is fully isolated -- it cannot access HiveScanner internals, modify shared state, or interfere with other scanners. Each poll runs in a fresh process with a 30-second timeout.
+Each poll runs in a fresh isolated-Python subprocess with a 60-second wall timeout, a private temporary directory, a credential allowlist, strict JSON/output limits, and best-effort POSIX CPU, memory, file, descriptor, and process limits. On macOS, `sandbox-exec` additionally denies filesystem access except for runtime/adapter reads and private-temp writes. Other platforms do **not** provide a filesystem sandbox, so review community code before enabling it.
 
 ### The Hire/Fire Lifecycle
 
@@ -437,7 +375,7 @@ HiveScanner takes a defense-in-depth approach to running third-party code. Every
 
 ### Process Isolation
 
-Community scanners **never** run inside the main HiveScanner process. They execute in isolated subprocesses via `subprocess.run()` with a 30-second timeout. The only communication channel is JSON over stdin/stdout -- no shared memory, no imports, no direct function calls.
+Community scanners never run inside the main HiveScanner process. They execute through isolated Python and strict JSON over stdin/stdout with a 60-second wall timeout. This is process isolation, not a cross-platform container: filesystem denial is currently macOS-only.
 
 ```
 Main Process                    Subprocess (sandboxed)
@@ -454,7 +392,7 @@ Scanner names are validated against the pattern `^[a-zA-Z0-9_-]+$`. This prevent
 
 ### Atomic File Writes
 
-All file writes (config, pollen, watermarks, audit log) use the atomic write pattern: write to a `.tmp` file, then `os.replace()` to the final path. This means a crash or power loss mid-write can never corrupt your data.
+State writes use private temporary files, `fsync`, and `os.replace()`, and state reads reject symlinks, duplicate keys, nonfinite values, oversized files, and type mismatches. The scanner loop also delays event-producing watermark commits until the durable pending batch is imported.
 
 ### No Secrets in Pollen
 
@@ -462,7 +400,7 @@ API tokens and credentials stay in environment variables. Scanners reference the
 
 ### Built-in Scanner Auth
 
-Built-in scanners like GitHub use the `gh` CLI tool, which inherits your existing authentication. HiveScanner never handles, stores, or transmits your GitHub token directly.
+The GitHub scanner always invokes `gh`. It uses the CLI's credential store by default, or reads the configured token environment variable and passes that token to `gh` as `GH_TOKEN` for the invocation. HiveScanner does not persist the token in config, pollen, snapshots, or audit records.
 
 ### GraphQL Injection Prevention
 
@@ -470,20 +408,11 @@ Scanners that use GraphQL APIs (like the Linear scanner) use parameterized varia
 
 ---
 
-## Triage Autonomy
+## Confirmed triage
 
-HiveScanner can optionally auto-post triage responses to your oncall channels. This is governed by a **6-gate safety system** -- every gate must pass before any content is posted. If any single gate fails, the post is blocked and logged.
+HiveScanner can prepare a fixed-template Slack triage draft for eligible pending pollen. It does not post merely because a message, scanner field, or model output asks it to. The Queen creates a short-lived local ticket, displays its exact draft and destination, and posts only after the user explicitly confirms that numbered item.
 
-### The 6 Gates
-
-| Gate | Check | What It Prevents |
-|------|-------|-------------------|
-| **1. Global Kill Switch** | `autonomy.enabled` must be `true` in config | Accidental posts when autonomy is off |
-| **2. Draft Exists** | Pollen must have a `triage_draft` in its metadata | Posting without prepared content |
-| **3. Group Allowlist** | Target group must be in `oncall_groups` list | Posts to unauthorized channels |
-| **4. Rate Limiting** | Max 3 posts per hour per group | Spam / runaway loops |
-| **5. Content Safety** | Draft must not contain remediation language, code blocks, or suggestions | Dangerous automated advice |
-| **6. Attribution Prefix** | Draft must start with `[Posted by HiveScanner - oncall triage assist]` | Unattributed automated posts |
+Posting fails closed unless all of these checks pass: autonomy kill switch, pending source-qualified pollen identity, unexpired ticket, unchanged exact-match group policy, destination allowlist, enabled triage policy, configured Slack transport, fixed attribution prefix, non-remediation content, per-group success and attempt limits, per-thread cooldown, and deterministic idempotency/unknown-outcome handling.
 
 ### Template-Based Drafts
 
@@ -501,7 +430,7 @@ If any pattern matches, the post is blocked. This ensures HiveScanner never give
 
 ### Full Audit Logging
 
-Every triage action -- posted or blocked -- is logged to `~/.hivescanner/audit.json` with timestamps, gate results, and content previews. You always have a complete record of what happened and why.
+Post attempts, successes, failures, blocks, and autonomy toggles are recorded in the bounded local audit log. Draft text comes from fixed templates; scanner prose and pollen metadata cannot supply executable instructions or authorize the post.
 
 ### Instant Kill Switch
 
@@ -511,7 +440,7 @@ If anything goes wrong:
 /hive autonomy off
 ```
 
-This immediately sets `autonomy.enabled = false` in config. All 6 gates will fail at Gate 1 until you explicitly re-enable it. The toggle is logged to the audit trail.
+This immediately sets `autonomy.enabled = false` in config. Posting remains blocked until a direct user request re-enables it; the toggle is logged.
 
 ---
 
@@ -538,7 +467,7 @@ We're actively looking for community scanners for:
 ### Guidelines
 
 - Keep your scanner self-contained -- use only Python stdlib when possible
-- List any required CLI tools in `requirements.cli_tools`
+- Keep `requirements.cli_tools` empty; community scanners cannot spawn required CLI dependencies in the constrained runtime
 - Never hardcode secrets -- use `api_key_env` to reference environment variables
 - Handle errors gracefully -- return `([], watermark)` on failure so the watermark doesn't advance
 - Include a descriptive `teammate.json` so users know what they're installing

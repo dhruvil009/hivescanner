@@ -27,7 +27,7 @@ echo '{"command": "poll", "config": {"enabled": true, "your_option": "value"}, "
   | python community/your-scanner/adapter.py --sandboxed
 ```
 
-Using `1970-01-01T00:00:00Z` as the watermark ensures all items are returned (useful for testing).
+Use `1970-01-01T00:00:00Z` only to exercise initial state. A correct scanner normally bootstraps quietly, so the first poll should snapshot current provider state and return no historical flood.
 
 Expected output — valid JSON with pollen items:
 
@@ -60,6 +60,11 @@ Before submitting your scanner, verify:
 - [ ] `poll` command returns valid JSON with all required pollen fields
 - [ ] Pollen IDs are unique and use a scanner-specific prefix
 - [ ] Watermarks advance correctly (no duplicate items on subsequent polls)
+- [ ] First poll is quiet; configuration/identity changes do not replay old data
+- [ ] Equal-timestamp delayed items are not skipped
+- [ ] Duplicate IDs, repeated cursors, reordered pages, provider errors, and malformed late records fail closed
+- [ ] Pagination/rate/time budgets preserve the old watermark instead of skipping backlog
+- [ ] Provider text that looks like instructions remains inert data
 - [ ] Errors are handled gracefully — return `([], watermark)` on failure
 - [ ] No secrets are hardcoded — all tokens use env var references
 - [ ] `teammate.json` is valid and all fields are populated

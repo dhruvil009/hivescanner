@@ -1,107 +1,55 @@
 # Sandboxed Execution
 
-Community scanners do **not** run inside the main HiveScanner process. They use a JSON-over-stdio protocol for complete isolation.
+Community scanners run outside the main HiveScanner process through a strict JSON-over-stdio protocol.
 
-## How It Works
+## Runtime boundary
 
-1. HiveScanner spawns your scanner: `python adapter.py --sandboxed`
-2. It sends a JSON command on stdin
-3. Your scanner prints a JSON response to stdout
-4. The subprocess exits
+1. HiveScanner starts `python -I adapter.py --sandboxed`.
+2. It sends one JSON command on stdin.
+3. The adapter prints one JSON response on stdout.
+4. The process exits.
 
-```
-Main Process                    Subprocess (sandboxed)
-     |                               |
-     |── stdin: JSON command ───────>|
-     |                               |── runs poll()
-     |<── stdout: JSON response ─────|
-     |                               |── exits
-```
+Every poll has a 60-second wall timeout, a 1 MB output limit, a private temporary directory, an allowlisted environment, and best-effort POSIX CPU, address-space, file-size, descriptor, and process limits. A timeout kills the process group. JSON input and output must be UTF-8, finite, duplicate-key-free objects.
 
-Each poll runs in a fresh process with a **30-second timeout**.
+On macOS, HiveScanner also uses `sandbox-exec`: adapter/runtime paths are read-only, only the private temporary directory is writable, and outbound network access is allowed. On other platforms there is currently **no filesystem sandbox**. Process and resource controls reduce impact but do not make unreviewed code safe; review an adapter before enabling it.
+
+Community manifests must declare `requirements.cli_tools` as `[]`. The constrained runtime does not support required child CLI dependencies.
 
 ## Commands
 
-### Poll
-
-**Input:**
+Poll input:
 
 ```json
 {
   "command": "poll",
-  "config": {
-    "enabled": true,
-    "token_env": "YOUR_TOKEN",
-    "max_items": 20
-  },
-  "watermark": "2025-01-15T10:00:00Z"
+  "config": {"enabled": true, "token_env": "YOUR_TOKEN"},
+  "watermark": "2026-07-15T10:00:00Z"
 }
 ```
 
-**Output:**
+Poll output:
 
 ```json
 {
-  "pollen": [
-    {
-      "id": "scanner-item-123",
-      "source": "your-scanner",
-      "type": "new_item",
-      "title": "Something happened",
-      "preview": "Details about what happened",
-      "discovered_at": "2025-01-15T10:30:00Z",
-      "author": "user",
-      "author_name": "User Name",
-      "group": "Group",
-      "url": "https://example.com/item/123",
-      "metadata": {}
-    }
-  ],
-  "watermark": "2025-01-15T10:30:00Z"
+  "pollen": [],
+  "watermark": "2026-07-15T10:00:00Z"
 }
 ```
 
-### Configure
-
-**Input:**
+Configure input and output:
 
 ```json
-{
-  "command": "configure"
-}
+{"command": "configure"}
 ```
-
-**Output:**
 
 ```json
-{
-  "config": {
-    "enabled": false,
-    "token_env": "YOUR_TOKEN",
-    "max_items": 20
-  }
-}
+{"config": {"enabled": false, "token_env": "YOUR_TOKEN"}}
 ```
 
-## Entry Point Boilerplate
+## Dispatcher requirements
 
-Add this at the bottom of your `adapter.py`:
+The dispatcher must reject duplicate keys, nonfinite numbers, non-object payloads, missing poll fields, and unknown commands. Copy the pattern from an existing v2 adapter such as `community/rss/adapter.py`; do not use a bare `json.loads(...); data["command"]` block as a production boundary.
 
-```python
-if __name__ == "__main__" and "--sandboxed" in sys.argv:
-    data = json.loads(sys.stdin.read())
-    scanner = YourScanner()
-    if data["command"] == "poll":
-        result_pollen, wm = scanner.poll(data["config"], data["watermark"])
-        print(json.dumps({"pollen": result_pollen, "watermark": wm}))
-    elif data["command"] == "configure":
-        print(json.dumps({"config": scanner.configure()}))
-```
+## What the parent validates
 
-## Isolation Guarantees
-
-- **No shared memory** — each poll runs in a fresh process
-- **No imports** — your scanner cannot import HiveScanner internals
-- **No direct function calls** — communication is strictly JSON over stdio
-- **30-second timeout** — runaway scanners are killed automatically
-- **No filesystem access** — your scanner should only read env vars and make network requests
+The parent validates the response shape, pollen count, every pollen record, source-qualified IDs, bounded text/metadata/URLs, and watermark size before accepting anything. If any record is invalid, that scanner's watermark is preserved.

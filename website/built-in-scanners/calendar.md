@@ -1,21 +1,25 @@
 # Calendar Scanner
 
-Monitors Google Calendar for upcoming meetings and event changes. Surfaces reminders at 30 minutes and 10 minutes before events.
+Monitors Google Calendar for changed events and configurable pre-meeting reminders. The first successful poll establishes a quiet baseline.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `meeting_reminder` | A meeting is starting in 30 or 10 minutes |
-| `event_changed` | An event was added, modified, or cancelled |
+| `meeting_reminder` | An event entered a configured reminder threshold |
+| `event_changed` | An event was added, changed, or cancelled after the baseline |
 
 ## Prerequisites
 
-Requires the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/cli):
+Install the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/cli), then follow its current authentication flow:
 
-1. Install `gws` following its [setup instructions](https://github.com/googleworkspace/cli#installation)
-2. Authenticate with your Google account: `gws auth login`
-3. Verify access: `gws calendar list`
+```bash
+gws auth setup
+gws auth login
+gws calendar calendarList list --format json
+```
+
+The CLI is under active development, so re-check its upstream setup instructions after upgrading.
 
 ## Configuration
 
@@ -23,10 +27,12 @@ Requires the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/c
 {
   "calendar": {
     "enabled": false,
-    "provider": "google",
-    "credentials_path": "",
-    "prep_minutes_before": 30,
-    "reminder_minutes_before": 10,
+    "reminder_minutes": [30, 10],
+    "max_events": 1000,
+    "max_pages": 10,
+    "lookahead_days": 30,
+    "calendars": [],
+    "timezone": "",
     "filter_declined": true,
     "noise_subjects": ["Focus Time", "Lunch", "OOO"]
   }
@@ -35,15 +41,14 @@ Requires the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/c
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `provider` | `google` | Calendar provider (currently only Google is supported) |
-| `credentials_path` | — | Path to Google credentials file (if not using `gws` CLI) |
-| `prep_minutes_before` | `30` | First reminder before event start |
-| `reminder_minutes_before` | `10` | Second reminder before event start |
-| `filter_declined` | `true` | Skip events you've declined |
-| `noise_subjects` | `["Focus Time", "Lunch", "OOO"]` | Event subjects to ignore |
+| `enabled` | `false` | Enable this scanner |
+| `reminder_minutes` | `[30, 10]` | Unique positive reminder thresholds in minutes |
+| `max_events` | `1000` | Total event safety cap, from 1 to 5,000 |
+| `max_pages` | `10` | Per-calendar and calendar-list page cap, from 1 to 100 |
+| `lookahead_days` | `30` | Future window, from 1 to 90 days |
+| `calendars` | `[]` | Calendar IDs to scan; empty discovers up to 25 accessible calendars |
+| `timezone` | `""` | Optional IANA timezone passed to Calendar; empty uses API defaults |
+| `filter_declined` | `true` | Ignore events you declined |
+| `noise_subjects` | built-in list | Exact event summaries to ignore |
 
-## Tips
-
-- Add common filler events to `noise_subjects` to reduce notification noise
-- The scanner only surfaces genuinely new or changed events — no duplicates between poll cycles
+If the configured page or event cap is exhausted, the scanner preserves its state rather than claiming the truncated response is complete.

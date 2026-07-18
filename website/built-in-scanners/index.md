@@ -4,7 +4,7 @@ HiveScanner ships with 7 built-in scanners that cover the most common developer 
 
 | Scanner | What It Watches | Auth Required |
 |---------|----------------|---------------|
-| [GitHub](/built-in-scanners/github) | PR reviews, CI status, @mentions, issue assignments | `gh` CLI or `GITHUB_TOKEN` |
+| [GitHub](/built-in-scanners/github) | PR reviews, CI status, @mentions, issue assignments | `gh` CLI; optional `GITHUB_TOKEN` |
 | [Git Status](/built-in-scanners/git-status) | Uncommitted changes, stale branches, merge conflicts, stashes | None (local) |
 | [Calendar](/built-in-scanners/calendar) | Meeting reminders, new/changed events | `gws` CLI |
 | [Google Chat](/built-in-scanners/gchat) | DMs and @mentions in configured spaces | `gws` CLI |
@@ -24,4 +24,4 @@ Some scanners require external CLI tools:
 |------|------------|---------|
 | `gh` | GitHub | [cli.github.com](https://cli.github.com/) |
 | `gws` | Calendar, Google Chat, Email | [Google Workspace CLI](https://github.com/googleworkspace/cli) |
-| `whatsapp-cli` | WhatsApp | [whatsapp-cli](https://github.com/nicehash/whatsapp-cli) |
+| `whatsapp-cli` | WhatsApp | [whatsapp-cli](https://github.com/vicentereig/whatsapp-cli) |

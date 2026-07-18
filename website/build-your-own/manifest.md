@@ -1,73 +1,37 @@
-# Manifest (teammate.json)
+# Manifest (`teammate.json`)
 
-Every community scanner needs a `teammate.json` manifest alongside its adapter file.
-
-## Example
+Every community scanner needs a manifest beside its adapter.
 
 ```json
 {
   "name": "rss",
   "display_name": "RSS Feeds",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Monitors RSS/Atom feeds for new entries",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
   "config_template": {
     "enabled": false,
     "feeds": [],
-    "max_items_per_feed": 5
+    "max_items_per_feed": 20,
+    "feeds_per_poll": 2
   },
-  "requirements": {
-    "cli_tools": []
-  },
-  "qpm_budget": 1
+  "requirements": {"cli_tools": []},
+  "qpm_budget": 2
 }
 ```
 
-## Fields
+| Field | Requirement |
+|---|---|
+| `name` | Unique `A-Z`, `a-z`, digit, `_`, or `-` name, at most 64 characters; must match the directory and scanner class |
+| `display_name` | Non-empty text, at most 100 characters |
+| `version` | Exact `X.Y.Z` semantic version |
+| `description` | Non-empty text, at most 500 characters |
+| `author` | Non-empty text, at most 100 characters |
+| `adapter_file` | A non-symlink Python filename inside the scanner directory |
+| `config_template` | JSON object whose `enabled` default is `false`; credential fields ending in `_env` name valid environment variables |
+| `requirements.cli_tools` | Must be `[]`; community subprocesses cannot require child CLI tools |
+| `qpm_budget` | Integer from 1 to 60; advisory metadata, not parent-enforced throttling |
+| `supports_check_acted` | Optional boolean; omit or use `false` unless the interface is implemented and reviewed |
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Unique scanner identifier. Must match `^[a-zA-Z0-9_-]+$` |
-| `display_name` | Yes | Human-readable name shown in the UI |
-| `version` | Yes | Semver version string (e.g., `"1.0.0"`) |
-| `description` | Yes | One-line description of what the scanner monitors |
-| `author` | Yes | Your name or handle |
-| `adapter_file` | Yes | Python file containing the Scanner class (usually `adapter.py`) |
-| `config_template` | Yes | Default configuration merged into `config.json` on hire |
-| `requirements.cli_tools` | Yes | List of CLI tools that must be installed (checked during hire) |
-| `qpm_budget` | Yes | Queries-per-minute budget for rate limiting |
-
-## Config Template
-
-The `config_template` object defines the default configuration for your scanner. When a user runs `/hive hire your-scanner`, these defaults are merged into their `config.json`.
-
-Always include `"enabled": false` so the scanner doesn't start polling until the user explicitly enables it.
-
-For tokens, use env var references:
-
-```json
-{
-  "enabled": false,
-  "token_env": "YOUR_SERVICE_TOKEN",
-  "max_items": 20
-}
-```
-
-## QPM Budget
-
-The `qpm_budget` field controls how many API requests your scanner is allowed per minute. Keep this low to be a good API citizen:
-
-- `1` — for lightweight APIs (RSS, Hacker News)
-- `2` — for most APIs (Linear, Jira, GitLab)
-- `3` — for APIs that require multiple calls per poll (Slack with multiple channels)
-
-## Directory Structure
-
-Your scanner directory should look like:
-
-```
-community/your-scanner/
-├── adapter.py       # Scanner implementation
-└── teammate.json    # Manifest
-```
+The adapter itself must enforce its provider's request budget, pacing, pagination caps, `Retry-After` behavior, and total poll deadline. Hiring validates and copies the files but leaves the scanner disabled until the user explicitly configures and enables it.

@@ -1,31 +1,36 @@
 # Weather Scanner
 
-Provides daily morning weather briefings and alerts for significant temperature swings.
+Uses [wttr.in](https://wttr.in) for a daily local-time briefing and change alerts. No API key or extra executable is required.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `weather_morning` | Daily morning weather briefing |
-| `weather_alert` | Significant temperature swing alert |
-
-## Prerequisites
-
-None — this scanner uses [wttr.in](https://wttr.in), a free weather API that requires no API key or installation.
+| `weather_morning` | One briefing in the configured morning window |
+| `weather_alert` | Temperature crossed the swing threshold or rain/snow began |
 
 ## Configuration
-
-Enable weather monitoring in your `~/.hivescanner/config.json`:
 
 ```json
 {
   "weather": {
-    "enabled": true
+    "enabled": false,
+    "location": "San Francisco, CA",
+    "morning_hour": 8,
+    "timezone": "America/Los_Angeles",
+    "morning_window_hours": 4,
+    "alert_temp_swing_c": 10
   }
 }
 ```
 
-## Tips
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Enable this scanner |
+| `location` | `""` | Required wttr.in location query |
+| `morning_hour` | `8` | Local start hour, from 0 to 23 |
+| `timezone` | `""` | IANA timezone; empty uses the machine's local timezone |
+| `morning_window_hours` | `4` | Briefing eligibility window, from 1 to 12 hours |
+| `alert_temp_swing_c` | `10` | Absolute change threshold, from 0 to 100 °C; zero still requires an actual change |
 
-- The morning briefing is surfaced once per day during your first session
-- Temperature swing alerts trigger when conditions change significantly between poll cycles
+Changing the location or timezone establishes a new quiet baseline. Provider failures, implausible values, redirects away from wttr.in, and malformed responses preserve the existing state.

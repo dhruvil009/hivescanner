@@ -1,28 +1,23 @@
 # Sentry
 
-Monitors Sentry for new issues and error spikes in your projects.
+Monitors a Sentry organization/project issue query for newly tracked issues, count spikes, and terminal transitions.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `sentry_issue` | A new issue was detected |
-| `sentry_spike` | An error spike was detected |
+| `sentry_issue` | A newly tracked issue |
+| `sentry_spike` | Event count crossed the configured delta and ratio |
+| `sentry_resolved` | A tracked issue resolved |
+| `sentry_ignored` | A tracked issue became ignored |
+| `sentry_no_longer_matching` | A tracked issue left the configured query/project |
 
-## Getting a Token
+## Setup
 
-1. Go to [Sentry Auth Tokens](https://sentry.io/settings/auth-tokens/)
-2. Click **Create New Token**
-3. Select scopes: `project:read`, `event:read`
-4. Copy the token and add to your shell profile:
+Create a Sentry auth token with appropriate organization/project and issue/event read scopes, then export it:
 
 ```bash
-export SENTRY_TOKEN="sntrys_xxxxxxxxxxxx"
-```
-
-## Install
-
-```
+export SENTRY_TOKEN="sntrys_..."
 /hive hire sentry
 ```
 
@@ -33,21 +28,26 @@ export SENTRY_TOKEN="sntrys_xxxxxxxxxxxx"
   "sentry": {
     "enabled": true,
     "token_env": "SENTRY_TOKEN",
-    "organization": "your-org-slug",
-    "project": "your-project-slug",
-    "max_items": 20
+    "organization": "org-slug",
+    "project": "project-slug",
+    "query": "is:unresolved",
+    "min_event_delta": 10,
+    "spike_ratio": 2.0,
+    "max_items": 100,
+    "max_pages": 10
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `SENTRY_TOKEN` | Environment variable containing your auth token |
-| `organization` | `""` | Your Sentry organization slug (from the URL) |
-| `project` | `""` | Your Sentry project slug (from the URL) |
-| `max_items` | `20` | Max issues fetched per poll cycle |
+| `token_env` | `SENTRY_TOKEN` | Auth-token environment variable |
+| `organization` | `""` | Required organization slug |
+| `project` | `""` | Optional project slug |
+| `query` | `is:unresolved` | Sentry issue-search expression |
+| `min_event_delta` | `10` | Minimum count increase required for a spike |
+| `spike_ratio` | `2.0` | Minimum new/old count ratio required for a spike |
+| `max_items` | `100` | Issue page size, from 1 to 100 |
+| `max_pages` | `10` | Page cap, from 1 to 10 |
 
-## API Details
-
-Uses the [Sentry REST API](https://docs.sentry.io/api/).
+The scanner tracks at most 500 issues and checks at most ten disappeared issues in detail per poll. See the [Sentry API](https://docs.sentry.io/api/); use webhooks beyond these polling bounds.

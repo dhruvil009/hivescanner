@@ -1,37 +1,26 @@
 # Package Tracking
 
-Parses shipping confirmation emails from Gmail to track package delivery status.
+Searches Gmail for shipping messages, extracts common carrier/tracking patterns, and classifies delivery language. It reads email; it does not query a carrier for authoritative package status.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `package_shipped` | A package has shipped |
-| `package_out_for_delivery` | A package is out for delivery |
-| `package_delivered` | A package has been delivered |
+| `package_shipped` | Message text indicates shipment |
+| `package_out_for_delivery` | Message text indicates out for delivery |
+| `package_delivered` | Message text indicates delivery |
+| `package_update` | Other matching shipping update |
 
-## Getting a Token
+## Setup
 
-This scanner reads your Gmail to find shipping emails. It requires a Google access token:
-
-1. Set up Google OAuth 2.0 credentials via the [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Enable the **Gmail API** for your project
-3. Generate an access token with the `gmail.readonly` scope
-4. Add to your shell profile:
+Obtain a Google OAuth access token with Gmail read access and export the raw token expected by this adapter:
 
 ```bash
-export GOOGLE_ACCESS_TOKEN="your-google-access-token"
-```
-
-::: tip
-If you already have the `gws` CLI set up for Calendar/Email scanners, you can reuse those credentials.
-:::
-
-## Install
-
-```
+export GOOGLE_ACCESS_TOKEN="your-current-access-token"
 /hive hire package-tracking
 ```
+
+An authenticated `gws` credential store is not read by this community scanner. Ordinary access tokens expire, so a production setup needs an external refresh mechanism that updates the environment presented to HiveScanner.
 
 ## Configuration
 
@@ -40,19 +29,20 @@ If you already have the `gws` CLI set up for Calendar/Email scanners, you can re
   "package-tracking": {
     "enabled": true,
     "token_env": "GOOGLE_ACCESS_TOKEN",
-    "max_items": 10,
-    "search_query": "subject:(shipped OR tracking OR delivery OR out for delivery) newer_than:1d"
+    "max_items": 20,
+    "max_pages": 5,
+    "overlap_seconds": 300,
+    "search_query": "subject:(shipped OR tracking OR delivery OR out for delivery)"
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `GOOGLE_ACCESS_TOKEN` | Environment variable for Gmail API access |
-| `max_items` | `10` | Max emails to scan per poll cycle |
-| `search_query` | *(see above)* | Gmail search query for finding shipping emails |
+| `token_env` | `GOOGLE_ACCESS_TOKEN` | Raw OAuth bearer-token environment variable |
+| `max_items` | `20` | Message details processed per poll, from 1 to 100 |
+| `max_pages` | `5` | Gmail list-page cap, from 1 to 10 |
+| `overlap_seconds` | `300` | Search overlap, from 60 to 3,600 seconds |
+| `search_query` | built-in shipping query | Gmail search expression combined with the scanner boundary |
 
-## API Details
-
-Uses the [Gmail REST API v1](https://developers.google.com/gmail/api/reference/rest).
+See the [Gmail API](https://developers.google.com/gmail/api/reference/rest). A backlog beyond the page cap remains uncommitted instead of being silently skipped.

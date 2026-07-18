@@ -1,29 +1,21 @@
 # Jira
 
-Monitors Jira for issues assigned to you, updates, and mentions.
+Monitors Jira Cloud issues selected by a configured JQL expression and reports assignment, mention, and other tracked-state transitions.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `jira_assigned` | An issue was assigned to you |
-| `jira_mentioned` | You were mentioned in an issue |
-| `jira_updated` | An assigned issue was updated |
+| `jira_assigned` | The issue became assigned to `account_id` |
+| `jira_mentioned` | Configured mention text newly appeared |
+| `jira_updated` | Another tracked issue state changed |
 
-## Getting a Token
+## Setup
 
-1. Go to [Atlassian API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
-2. Click **Create API token**
-3. Give it a label (e.g., "HiveScanner")
-4. Copy the token and add to your shell profile:
+Create an Atlassian API token and export it. The scanner uses HTTP Basic auth with the configured account email and token.
 
 ```bash
 export JIRA_TOKEN="your-api-token"
-```
-
-## Install
-
-```
 /hive hire jira
 ```
 
@@ -34,21 +26,30 @@ export JIRA_TOKEN="your-api-token"
   "jira": {
     "enabled": true,
     "token_env": "JIRA_TOKEN",
-    "domain": "your-company.atlassian.net",
-    "username": "your-email@company.com",
-    "max_items": 20
+    "domain": "company.atlassian.net",
+    "username": "you@example.com",
+    "account_id": "your-atlassian-account-id",
+    "jql": "assignee = currentUser() OR watcher = currentUser()",
+    "mention_terms": ["@Your Name"],
+    "jira_timezone": "UTC",
+    "overlap_minutes": 10,
+    "max_items": 100,
+    "max_pages": 10
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `JIRA_TOKEN` | Environment variable containing your API token |
-| `domain` | `""` | Your Jira domain (e.g., `your-company.atlassian.net`) |
-| `username` | `""` | Your Jira email address (used for Basic auth) |
-| `max_items` | `20` | Max issues fetched per poll cycle |
+| `token_env` | `JIRA_TOKEN` | Token environment variable |
+| `domain` | `""` | Jira Cloud hostname such as `company.atlassian.net` |
+| `username` | `""` | Account email for Basic auth |
+| `account_id` | `""` | Exact assignee account ID used to classify assignments |
+| `jql` | built-in query | Base selection expression; HiveScanner adds its bounded update window |
+| `mention_terms` | `[]` | Exact textual terms searched in issue description fields |
+| `jira_timezone` | `UTC` | IANA timezone used when formatting the JQL update boundary |
+| `overlap_minutes` | `10` | Search overlap, from 1 to 1,440 minutes |
+| `max_items` | `100` | Page size, from 1 to 100 |
+| `max_pages` | `10` | Page cap, from 1 to 10 |
 
-## API Details
-
-Uses the [Jira REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/) with Basic authentication (email + API token).
+See the [Jira Cloud REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/). A full backlog that exceeds the cap is left uncommitted.

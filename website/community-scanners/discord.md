@@ -1,39 +1,24 @@
 # Discord
 
-Monitors Discord DMs and channel mentions via the Bot API.
+Polls the [Discord REST API v10](https://discord.com/developers/docs/reference) for DMs in explicit DM channels and mentions in explicit guild channels.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `discord_dm` | A direct message was received |
-| `discord_mention` | You were @mentioned in a channel |
+| `discord_dm` | A message in a configured DM channel |
+| `discord_mention` | A configured guild-channel message mentions `user_id` |
 
-## Getting a Token
+## Setup
 
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click **New Application**, name it "HiveScanner"
-3. Go to **Bot** in the sidebar and click **Add Bot**
-4. Under **Privileged Gateway Intents**, enable:
-   - **Message Content Intent**
-5. Click **Reset Token** and copy the token
-6. Add to your shell profile:
+Create a bot in the [Discord Developer Portal](https://discord.com/developers/applications), grant it View Channel and Read Message History access to each watched guild channel, and export its token:
 
 ```bash
 export DISCORD_BOT_TOKEN="your-bot-token"
-```
-
-7. Invite the bot to your server using the OAuth2 URL Generator:
-   - Go to **OAuth2 > URL Generator**
-   - Select scopes: `bot`
-   - Select permissions: `Read Messages/View Channels`, `Read Message History`
-   - Visit the generated URL and add the bot to your server
-
-## Install
-
-```
 /hive hire discord
 ```
+
+REST polling cannot discover a bot's DM channels, so copy every desired DM channel ID into `watch_dm_channels`. Bot access, guild permissions, and Discord's current intent/content rules determine which message fields are visible.
 
 ## Configuration
 
@@ -42,23 +27,26 @@ export DISCORD_BOT_TOKEN="your-bot-token"
   "discord": {
     "enabled": true,
     "token_env": "DISCORD_BOT_TOKEN",
-    "watch_channels": ["channel-id-1", "channel-id-2"],
-    "watch_dms": true,
-    "user_id": "your-discord-user-id",
-    "max_messages": 20
+    "watch_channels": ["guild-channel-id"],
+    "watch_dm_channels": ["dm-channel-id"],
+    "watch_dms": false,
+    "user_id": "your-user-id",
+    "bot_user_id": "the-bot-user-id",
+    "max_messages": 100,
+    "channels_per_poll": 10
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `token_env` | `DISCORD_BOT_TOKEN` | Environment variable containing your bot token |
-| `watch_channels` | `[]` | Channel IDs to monitor (right-click channel > Copy ID) |
-| `watch_dms` | `true` | Monitor direct messages |
-| `user_id` | `""` | Your Discord user ID (for filtering @mentions) |
-| `max_messages` | `20` | Max messages fetched per poll cycle |
+| `token_env` | `DISCORD_BOT_TOKEN` | Bot-token environment variable |
+| `watch_channels` | `[]` | Unique numeric guild channel IDs |
+| `watch_dm_channels` | `[]` | Unique numeric DM channel IDs |
+| `watch_dms` | `false` | Include the explicit DM list; with no DM IDs, no DMs can be scanned |
+| `user_id` | `""` | Numeric account ID used for exact mention detection |
+| `bot_user_id` | `""` | Optional bot ID whose own messages are ignored |
+| `max_messages` | `100` | Per-request message cap, from 1 to 100 |
+| `channels_per_poll` | `10` | Channel requests rotated through per poll, from 1 to 100 |
 
-## API Details
-
-Uses the [Discord REST API v10](https://discord.com/developers/docs/reference).
+Large channel bursts are backfilled over later polls without advancing past an incomplete boundary.

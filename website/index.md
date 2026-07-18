@@ -24,5 +24,5 @@ features:
   - title: Smart Notifications
     details: Bootstrap silence, watermark-based incremental polling, smart batch grouping, and a full pollen lifecycle.
   - title: Security First
-    details: Process isolation for third-party scanners, atomic file writes, no secrets in pollen, and a 6-gate safety system for triage autonomy.
+    details: Constrained third-party scanner processes, atomic state writes, no secrets in pollen, and explicit-confirmation, policy, transport, rate, content, and idempotency gates for triage posts.
 ---

@@ -1,28 +1,21 @@
 # Linear
 
-Monitors Linear issues and status changes assigned to you.
+Monitors selected Linear issues and reports assignment or tracked-state transitions through the [Linear GraphQL API](https://linear.app/developers/graphql).
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `issue_assigned` | An issue was assigned to you |
-| `issue_updated` | An assigned issue's status changed |
+| `linear_issue_new` | A newly selected issue was created inside the overlap window |
+| `issue_assigned` | The issue became assigned to `assignee_id` |
+| `issue_updated` | Status, priority, or assignee changed |
 
-## Getting a Token
+## Setup
 
-1. Go to [Linear Settings > API](https://linear.app/settings/api)
-2. Click **Create key** under "Personal API keys"
-3. Give it a label (e.g., "HiveScanner")
-4. Copy the key and add it to your shell profile:
+Create a personal API key in Linear's API settings and export it:
 
 ```bash
-export LINEAR_API_KEY="lin_api_xxxxxxxxxxxx"
-```
-
-## Install
-
-```
+export LINEAR_API_KEY="lin_api_..."
 /hive hire linear
 ```
 
@@ -33,17 +26,22 @@ export LINEAR_API_KEY="lin_api_xxxxxxxxxxxx"
   "linear": {
     "enabled": true,
     "api_key_env": "LINEAR_API_KEY",
-    "team_id": "your-team-id"
+    "team_id": "",
+    "assignee_id": "",
+    "max_items": 50,
+    "max_pages": 10,
+    "overlap_minutes": 5
   }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Enable/disable this scanner |
-| `api_key_env` | `LINEAR_API_KEY` | Environment variable containing your API key |
-| `team_id` | `""` | Your Linear team ID (find it in team settings URL) |
+| `api_key_env` | `LINEAR_API_KEY` | API-key environment variable |
+| `team_id` | `""` | Optional exact team ID filter |
+| `assignee_id` | `""` | Optional exact assignee ID filter/classifier |
+| `max_items` | `50` | Cursor page size, from 1 to 250 |
+| `max_pages` | `10` | Cursor page cap, from 1 to 10 |
+| `overlap_minutes` | `5` | Updated-time overlap, from 0 to 1,440 minutes |
 
-## API Details
-
-Uses the [Linear GraphQL API](https://developers.linear.app/docs/graphql/working-with-the-graphql-api) with parameterized queries (no injection risk).
+The adapter sends filters as GraphQL variables, validates cursor progress, and preserves state when pagination cannot reach a safe end.

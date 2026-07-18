@@ -29,7 +29,7 @@ HiveScanner launches an interactive wizard that walks you through configuration.
 
 The wizard will ask you to set up:
 
-- **GitHub** — which repos to watch, whether to track reviews, CI, and @mentions (requires `gh` CLI or `$GITHUB_TOKEN`)
+- **GitHub** — which repos to watch, whether to track reviews, CI, and @mentions (requires the `gh` CLI; `$GITHUB_TOKEN` is optional authentication)
 - **Slack** — optional; which channels and DMs to monitor (requires `$SLACK_TOKEN`)
 - **Calendar** — optional; Google Calendar integration for meeting reminders (requires `gws` CLI)
 - **git_status** — enabled by default; watches local directories for uncommitted changes, stale branches, and merge conflicts

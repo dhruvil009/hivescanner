@@ -1,32 +1,52 @@
 # Google Chat Scanner
 
-Monitors Google Chat for direct messages and @mentions in configured spaces.
+Monitors selected Google Chat spaces and direct-message spaces for DMs and mentions. Work is rotated across a bounded number of spaces per poll.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `gchat_dm` | A direct message was received |
-| `gchat_mention` | You were @mentioned in a space |
+| `gchat_dm` | A new message in a direct-message space |
+| `gchat_mention` | A new message mentions the configured user |
 
 ## Prerequisites
 
-Requires the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/cli):
+Install the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/cli), then authenticate:
 
-1. Install `gws` following its [setup instructions](https://github.com/googleworkspace/cli#installation)
-2. Authenticate with your Google account: `gws auth login`
-3. Verify access: `gws chat spaces list`
+```bash
+gws auth setup
+gws auth login
+gws chat spaces list --format json
+```
 
 ## Configuration
-
-Enable Google Chat monitoring in your `~/.hivescanner/config.json`:
 
 ```json
 {
   "gchat": {
-    "enabled": true
+    "enabled": false,
+    "watch_spaces": [],
+    "watch_dm_spaces": [],
+    "watch_dms": true,
+    "user_resource": "",
+    "username": "",
+    "max_messages": 20,
+    "max_pages": 10,
+    "spaces_per_poll": 5
   }
 }
 ```
 
-The Google Chat scanner uses the `gws` CLI for authentication and API access. No separate token is needed.
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Enable this scanner |
+| `watch_spaces` | `[]` | Unique Google Chat space names or IDs, such as `spaces/AAAA` |
+| `watch_dm_spaces` | `[]` | Explicit direct-message space names or IDs |
+| `watch_dms` | `true` | Discover accessible DM spaces and refresh that discovery daily |
+| `user_resource` | `""` | Optional `users/...` resource used for exact mention matching |
+| `username` | `""` | Optional username used for textual mention matching |
+| `max_messages` | `20` | Page size, from 1 to 1,000 |
+| `max_pages` | `10` | Message/discovery page cap, from 1 to 10 |
+| `spaces_per_poll` | `5` | Spaces rotated through per poll, from 1 to 20 |
+
+An empty explicit watch list does not mean “scan every room”; it only adds automatically discovered DMs when `watch_dms` is enabled.

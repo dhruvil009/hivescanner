@@ -1,37 +1,46 @@
 # Email Scanner
 
-Monitors Gmail for new emails and urgent messages from VIP senders.
+Monitors Gmail for messages matching a Gmail search query and marks exact configured sender addresses as urgent. The first successful poll establishes a quiet baseline.
 
 ## Pollen Types
 
 | Type | Description |
 |------|-------------|
-| `email_new` | A new email arrived |
-| `email_urgent` | An urgent email from a VIP sender |
+| `email_new` | A newly observed matching message |
+| `email_urgent` | A newly observed matching message from an exact VIP address |
 
 ## Prerequisites
 
-Requires the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/cli):
+Install the [Google Workspace CLI (`gws`)](https://github.com/googleworkspace/cli), then authenticate:
 
-1. Install `gws` following its [setup instructions](https://github.com/googleworkspace/cli#installation)
-2. Authenticate with your Google account: `gws auth login`
-3. Verify access: `gws gmail messages list`
+```bash
+gws auth setup
+gws auth login
+gws gmail messages list --params '{"userId":"me","maxResults":1}' --format json
+```
 
 ## Configuration
-
-Enable email monitoring in your `~/.hivescanner/config.json`:
 
 ```json
 {
   "email": {
-    "enabled": true
+    "enabled": false,
+    "vip_senders": ["person@example.com"],
+    "query": "in:inbox",
+    "max_emails": 20,
+    "max_pages": 5,
+    "overlap_seconds": 300
   }
 }
 ```
 
-The Email scanner uses the `gws` CLI for authentication and Gmail API access. No separate token is needed.
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Enable this scanner |
+| `vip_senders` | `[]` | Unique email addresses matched exactly and case-insensitively |
+| `query` | `in:inbox` | Gmail search expression combined with the scanner's time boundary |
+| `max_emails` | `20` | Message details processed per poll, from 1 to 20 |
+| `max_pages` | `5` | List-page cap, from 1 to 5 |
+| `overlap_seconds` | `300` | Boundary overlap, from 60 to 3,600 seconds |
 
-## Tips
-
-- Configure VIP senders to get urgent notifications for critical contacts
-- The scanner fetches only new emails since the last watermark — no duplicates
+The list endpoint can cover at most five 500-message pages per poll. A larger unresolved backlog is detected and left uncommitted so it is not silently skipped; narrow `query` if that condition persists.

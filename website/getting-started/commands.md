@@ -32,7 +32,7 @@ Re-hiring a previously fired scanner restores your previous configuration.
 
 | Command | Description |
 |---------|-------------|
-| `/hive autonomy on` | Enable triage auto-responses (requires additional safety gates) |
-| `/hive autonomy off` | Immediately disable all auto-responses |
+| `/hive autonomy on` | Permit explicitly confirmed fixed-template triage posts when every policy/transport gate passes |
+| `/hive autonomy off` | Immediately block triage posting |
 
-See [Triage Autonomy](/concepts/triage-autonomy) for details on the 6-gate safety system.
+See [Confirmed Triage](/concepts/triage-autonomy) for the ticket, confirmation, policy, transport, rate, cooldown, content, and idempotency gates.

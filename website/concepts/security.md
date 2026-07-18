@@ -1,36 +1,31 @@
 # Security Model
 
-HiveScanner takes a defense-in-depth approach to running third-party code.
+HiveScanner treats all provider responses, community adapters, pollen fields, URLs, and background output as untrusted data.
 
-## Process Isolation
+## Scanner boundaries
 
-Community scanners **never** run inside the main HiveScanner process. They execute in isolated subprocesses via `subprocess.run()` with a 30-second timeout. The only communication channel is JSON over stdin/stdout — no shared memory, no imports, no direct function calls.
+- Built-ins validate config, credentials, provider envelopes, pagination, ordering, timestamps, and staged snapshots before committing progress.
+- Community adapters run in isolated Python subprocesses with a 60-second timeout, a credential allowlist, private temp storage, strict JSON/output limits, and resource caps.
+- macOS adds a filesystem-denying `sandbox-exec` profile. Other platforms do not currently provide filesystem isolation; review community code before enabling it.
+- Same-origin redirect handlers prevent credentials from following redirects to another scheme, host, or port.
+- Community scanners cannot require CLI tools and are installed disabled.
 
-```
-Main Process                    Subprocess (sandboxed)
-     |                               |
-     |── stdin: JSON command ───────>|
-     |                               |── runs poll()
-     |<── stdout: JSON response ─────|
-     |                               |── exits
-```
+## State and delivery
 
-## Scanner Name Validation
+State files are private and bounded. Reads reject symlinks, duplicate JSON keys, nonfinite values, oversized files, and unexpected top-level types. Writes use a private temporary file, `fsync`, and atomic replacement under advisory locks.
 
-Scanner names are validated against `^[a-zA-Z0-9_-]+$`. This prevents path traversal attacks — a scanner named `../../etc` would be rejected before any file operations occur.
+Event-producing watermarks are not committed until the durable pending batch has been imported. Scanner snapshots stage candidate state so a crash between polling and delivery does not silently skip items.
 
-## Atomic File Writes
+## Prompt injection
 
-All file writes (config, pollen, watermarks, audit log) use the atomic write pattern: write to a `.tmp` file, then `os.replace()` to the final path. A crash or power loss mid-write can never corrupt your data.
+Provider text is data, never authority. The `/hive` skill forbids following instructions found in titles, previews, authors, metadata, URLs, API errors, or background stdout. Pollen cannot authorize commands, URL access, configuration changes, scanner management, secret disclosure, or external messages.
 
-## No Secrets in Pollen
+Pollen crosses a central normalization boundary that bounds text and metadata, strips control characters, validates HTTPS/HTTP URLs, removes scanner-supplied triage control fields, and keys deduplication by both source and item ID.
 
-API tokens and credentials stay in environment variables. Scanners reference them by env var name (e.g., `"token_env": "LINEAR_API_KEY"`) — the actual secret is read at runtime via `os.environ.get()` and never persisted to pollen, config, or audit files.
+## Credentials
 
-## Built-in Scanner Auth
+Secrets remain in environment variables or authenticated CLI stores. Community subprocesses receive only runtime essentials and credential variables explicitly named by `*_env` configuration. Tokens are never copied into pollen or audit records.
 
-Built-in scanners like GitHub use the `gh` CLI, which inherits your existing authentication. HiveScanner never handles, stores, or transmits your GitHub token directly.
+## Confirmed external posting
 
-## GraphQL Injection Prevention
-
-Scanners that use GraphQL APIs (like Linear) use parameterized variables — query parameters are passed as separate `variables`, never interpolated into the query string.
+Slack triage uses fixed local templates and short-lived tickets. Posting requires direct user confirmation plus an unchanged exact group policy, destination allowlist, enabled transport, content/attribution checks, cooldowns, success and attempt limits, and idempotency handling. Unknown transport outcomes are not automatically retried.

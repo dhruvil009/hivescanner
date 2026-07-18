@@ -1,6 +1,6 @@
 # Community Scanners
 
-HiveScanner's community scanner ecosystem lets you extend monitoring to any service with an API. Community scanners run sandboxed in isolated subprocesses.
+HiveScanner's community scanner ecosystem extends monitoring to services with HTTP APIs. Community scanners run in constrained subprocesses; filesystem denial is currently macOS-only, so this is not a cross-platform container boundary.
 
 ## Available Scanners
 
@@ -16,7 +16,7 @@ HiveScanner's community scanner ecosystem lets you extend monitoring to any serv
 | [Sentry](/community-scanners/sentry) | Issues and error spikes | `SENTRY_TOKEN` |
 | [Notion](/community-scanners/notion) | Page updates and comments | `NOTION_TOKEN` |
 | [Twitter / X](/community-scanners/twitter) | Mentions and DMs | `TWITTER_BEARER_TOKEN` |
-| [Facebook](/community-scanners/facebook) | Page notifications and Messenger | `FACEBOOK_TOKEN` |
+| [Facebook](/community-scanners/facebook) | Page Messenger conversations | `FACEBOOK_PAGE_TOKEN` |
 | [RSS](/community-scanners/rss) | RSS/Atom feed monitoring | None |
 | [Hacker News](/community-scanners/hackernews) | Top stories and username mentions | None |
 | [Package Tracking](/community-scanners/package-tracking) | Shipping updates from Gmail | `GOOGLE_ACCESS_TOKEN` |
