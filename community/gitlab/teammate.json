@@ -1,7 +1,7 @@
 {
   "name": "gitlab",
   "display_name": "GitLab",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Monitors GitLab merge requests, CI pipelines, and mentions",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
@@ -10,7 +10,14 @@
     "token_env": "GITLAB_TOKEN",
     "gitlab_url": "https://gitlab.com",
     "username": "",
-    "max_items": 20
+    "watch_projects": [],
+    "watch_reviews": true,
+    "watch_pipelines": true,
+    "watch_todos": true,
+    "max_items": 100,
+    "max_pages": 3,
+    "projects_per_poll": 3,
+    "overlap_minutes": 10
   },
   "requirements": {
     "cli_tools": []

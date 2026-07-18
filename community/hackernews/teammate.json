@@ -1,7 +1,7 @@
 {
   "name": "hackernews",
   "display_name": "Hacker News",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Monitors Hacker News for top stories and username mentions",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
@@ -10,7 +10,9 @@
     "watch_keywords": [],
     "username": "",
     "min_points": 100,
-    "max_items": 20
+    "max_items": 100,
+    "max_pages": 3,
+    "keywords_per_poll": 2
   },
   "requirements": {
     "cli_tools": []

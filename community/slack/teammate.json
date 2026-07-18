@@ -1,8 +1,8 @@
 {
   "name": "slack",
   "display_name": "Slack",
-  "version": "1.0.0",
-  "description": "Monitors Slack channels and DMs for messages, mentions, and thread replies",
+  "version": "2.0.0",
+  "description": "Rate-limit-aware Slack channel and DM polling",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
   "config_template": {
@@ -10,8 +10,11 @@
     "token_env": "SLACK_TOKEN",
     "watch_channels": [],
     "watch_dms": true,
-    "username": "",
-    "max_messages": 20
+    "user_id": "",
+    "max_messages": 15,
+    "history_requests_per_poll": 1,
+    "allow_high_tier_rate_limits": false,
+    "dm_discovery_max_pages": 10
   },
   "requirements": {
     "cli_tools": []

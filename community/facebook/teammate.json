@@ -1,15 +1,19 @@
 {
   "name": "facebook",
   "display_name": "Facebook",
-  "version": "1.0.0",
-  "description": "Monitors Facebook page notifications and Messenger messages",
+  "version": "2.0.0",
+  "description": "Polls Messenger conversations for explicitly configured Facebook Pages",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
   "config_template": {
     "enabled": false,
-    "token_env": "FACEBOOK_TOKEN",
+    "token_env": "FACEBOOK_PAGE_TOKEN",
+    "api_version": "v25.0",
     "watch_pages": [],
-    "max_items": 20
+    "max_items": 100,
+    "max_pages": 3,
+    "pages_per_poll": 2,
+    "conversations_per_page": 4
   },
   "requirements": {
     "cli_tools": []

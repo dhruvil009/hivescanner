@@ -1,14 +1,18 @@
 {
   "name": "linear",
   "display_name": "Linear Issues",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Monitors Linear issues and status changes",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
   "config_template": {
     "enabled": false,
     "api_key_env": "LINEAR_API_KEY",
-    "team_id": ""
+    "team_id": "",
+    "assignee_id": "",
+    "max_items": 50,
+    "max_pages": 10,
+    "overlap_minutes": 5
   },
   "requirements": {
     "cli_tools": []

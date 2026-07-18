@@ -1,7 +1,7 @@
 {
   "name": "jira",
   "display_name": "Jira",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Monitors Jira issues — assignments, updates, and mentions",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
@@ -10,7 +10,13 @@
     "token_env": "JIRA_TOKEN",
     "domain": "",
     "username": "",
-    "max_items": 20
+    "account_id": "",
+    "jql": "assignee = currentUser() OR watcher = currentUser()",
+    "mention_terms": [],
+    "jira_timezone": "UTC",
+    "overlap_minutes": 10,
+    "max_items": 100,
+    "max_pages": 10
   },
   "requirements": {
     "cli_tools": []

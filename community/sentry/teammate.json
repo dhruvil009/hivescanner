@@ -1,7 +1,7 @@
 {
   "name": "sentry",
   "display_name": "Sentry",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Monitors Sentry issues and error spikes",
   "author": "hivescanner-community",
   "adapter_file": "adapter.py",
@@ -10,7 +10,11 @@
     "token_env": "SENTRY_TOKEN",
     "organization": "",
     "project": "",
-    "max_items": 20
+    "query": "is:unresolved",
+    "min_event_delta": 10,
+    "spike_ratio": 2.0,
+    "max_items": 100,
+    "max_pages": 10
   },
   "requirements": {
     "cli_tools": []
