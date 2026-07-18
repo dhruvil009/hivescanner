@@ -7,6 +7,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 
 # Registry of CLI tools and how to install them.
 # Install methods are tried in order: brew → npm → pip.
@@ -20,7 +21,7 @@ _TOOL_REGISTRY = {
         "description": "Google Workspace CLI",
         "brew": "googleworkspace-cli",
         "npm": "@googleworkspace/cli",
-        "post_install": "Run `gws auth setup --login` to configure OAuth and authenticate.",
+        "post_install": "Run `gws auth setup`, then `gws auth login` to configure OAuth and authenticate.",
         "setup_requires": ["gcloud"],
     },
     "gcloud": {
@@ -31,7 +32,7 @@ _TOOL_REGISTRY = {
     "whatsapp-cli": {
         "description": "WhatsApp CLI",
         "brew": "vicentereig/tap/whatsapp-cli",
-        "post_install": "Run `whatsapp-cli auth` (QR code), then `whatsapp-cli messages sync` to populate the local DB. The scanner reads from the synced DB.",
+        "post_install": "Run `whatsapp-cli auth` (QR code), then keep `whatsapp-cli sync` running. If using a custom database directory, set the scanner's store_path too.",
     },
     "git": {
         "description": "Git",
@@ -78,12 +79,23 @@ def _install_instructions(name: str, info: dict) -> str:
 def _run_install(cmd: list[str], timeout: int = 120) -> bool:
     """Run an install command silently. Returns True on success."""
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        # Package managers can emit arbitrarily large or non-UTF-8 output.
+        # Spool it to files and only read the bounded diagnostic we expose.
+        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+            result = subprocess.run(
+                cmd,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                timeout=timeout,
+            )
+            stderr_file.seek(0)
+            raw_stderr = stderr_file.read(201)
         if result.returncode == 0:
             return True
-        _log(f"  failed ({cmd[0]}): {result.stderr.strip()[:200]}")
+        diagnostic = raw_stderr.decode("utf-8", errors="replace").strip()
+        _log(f"  failed ({cmd[0]}): {diagnostic[:200]}")
         return False
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+    except (subprocess.TimeoutExpired, OSError, UnicodeError, ValueError) as e:
         _log(f"  error ({cmd[0]}): {e}")
         return False
 

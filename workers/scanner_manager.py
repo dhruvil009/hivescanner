@@ -7,42 +7,64 @@ import os
 import re
 import shutil
 import sys
+import tempfile
+from functools import wraps
 from pathlib import Path
 
-from dep_installer import ensure_tool
+from state_io import StateFileError, advisory_lock, atomic_write_json, load_json
 
 HIVESCANNER_HOME = Path.home() / ".hivescanner"
 CONFIG_FILE = HIVESCANNER_HOME / "config.json"
 POLLEN_FILE = HIVESCANNER_HOME / "pollen.json"
 SCANNERS_DIR = HIVESCANNER_HOME / "scanners"
 TEAMMATES_DIR = HIVESCANNER_HOME / "teammates"
+CONFIG_LOCK_FILE = HIVESCANNER_HOME / ".config.lock"
 
 BUILTIN_SCANNERS = {"github", "calendar", "git_status", "gchat", "whatsapp", "email", "weather"}
-_VALID_NAME = re.compile(r"^[a-zA-Z0-9_-]+$")
+_VALID_NAME = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+_SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+_ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _validate_name(name: str) -> str | None:
     """Reject names with path traversal or special characters."""
-    if not name or not _VALID_NAME.match(name):
+    if not isinstance(name, str) or not _VALID_NAME.fullmatch(name):
         return f"Invalid scanner name '{name}'. Only alphanumeric, hyphens, and underscores allowed."
     return None
 
 
 def _load_config() -> dict:
-    if not CONFIG_FILE.exists():
-        return {}
-    try:
-        return json.loads(CONFIG_FILE.read_text())
-    except (json.JSONDecodeError, OSError):
-        return {}
+    return load_json(CONFIG_FILE, {}, dict)
 
 
 def _save_config(config: dict) -> None:
-    HIVESCANNER_HOME.mkdir(parents=True, exist_ok=True)
-    tmp = CONFIG_FILE.with_suffix(".tmp")
-    with open(tmp, "w") as f:
-        json.dump(config, f, indent=2)
-    os.replace(str(tmp), str(CONFIG_FILE))
+    atomic_write_json(CONFIG_FILE, config)
+
+
+def _config_locked(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        with advisory_lock(CONFIG_LOCK_FILE):
+            return function(*args, **kwargs)
+
+    return wrapped
+
+
+def _atomic_copy(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", suffix=".tmp", dir=str(destination.parent)
+    )
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        shutil.copyfile(source, tmp)
+        os.chmod(tmp, 0o600)
+        with tmp.open("rb") as handle:
+            os.fsync(handle.fileno())
+        os.replace(tmp, destination)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _find_plugin_root() -> Path:
@@ -53,6 +75,7 @@ def _find_plugin_root() -> Path:
     return current.parent
 
 
+@_config_locked
 def hire(name: str) -> dict:
     """Activate a community scanner."""
     err = _validate_name(name)
@@ -64,7 +87,7 @@ def hire(name: str) -> dict:
     plugin_root = _find_plugin_root()
     community_dir = plugin_root / "community" / name
 
-    if not community_dir.is_dir():
+    if community_dir.is_symlink() or not community_dir.is_dir():
         available = []
         community_base = plugin_root / "community"
         if community_base.is_dir():
@@ -78,11 +101,70 @@ def hire(name: str) -> dict:
     if not manifest_path.exists():
         return {"error": f"No teammate.json found in community/{name}/"}
     try:
-        manifest = json.loads(manifest_path.read_text())
-    except json.JSONDecodeError as e:
+        if manifest_path.stat().st_size > 1_000_000:
+            raise ValueError("manifest exceeds 1 MB")
+        manifest = load_json(manifest_path, {}, dict)
+    except (StateFileError, OSError, ValueError) as e:
         return {"error": f"Invalid teammate.json: {e}"}
 
+    if manifest.get("name") != name:
+        return {"error": f"Manifest name must exactly match '{name}'"}
+    if not isinstance(manifest.get("version"), str) or not _SEMVER.fullmatch(
+        manifest["version"]
+    ):
+        return {"error": "Manifest version must be semantic version X.Y.Z"}
+    if any(
+        not isinstance(manifest.get(field), str)
+        or not manifest[field].strip()
+        or len(manifest[field]) > limit
+        for field, limit in (
+            ("display_name", 100),
+            ("description", 500),
+            ("author", 100),
+        )
+    ):
+        return {"error": "Manifest display_name, description, and author are required"}
+    qpm_budget = manifest.get("qpm_budget")
+    if (
+        isinstance(qpm_budget, bool)
+        or not isinstance(qpm_budget, int)
+        or not 1 <= qpm_budget <= 60
+    ):
+        return {"error": "Manifest qpm_budget must be an integer from 1 to 60"}
+    supports_check_acted = manifest.get("supports_check_acted", False)
+    if not isinstance(supports_check_acted, bool):
+        return {"error": "Manifest supports_check_acted must be a boolean"}
+    config_template = manifest.get("config_template", {})
+    requirements = manifest.get("requirements", {})
+    if not isinstance(config_template, dict) or not isinstance(requirements, dict):
+        return {"error": "Manifest config_template and requirements must be objects"}
+    if any(
+        key.endswith("_env")
+        and (not isinstance(value, str) or _ENV_NAME.fullmatch(value) is None)
+        for key, value in config_template.items()
+    ):
+        return {"error": "Manifest credential environment names are invalid"}
+    cli_tools = requirements.get("cli_tools", [])
+    if not isinstance(cli_tools, list) or not all(
+        isinstance(tool, str) and re.fullmatch(r"[A-Za-z0-9_.+-]{1,64}", tool)
+        for tool in cli_tools
+    ):
+        return {"error": "Manifest requirements.cli_tools must be a string array"}
+    if cli_tools:
+        return {
+            "error": (
+                "Community scanners cannot require CLI tools: the constrained "
+                "runtime intentionally permits only the scanner's Python process"
+            )
+        }
+
     scanner_file = manifest.get("adapter_file", "adapter.py")
+    if not isinstance(scanner_file, str):
+        return {"error": "Manifest adapter_file must be a string"}
+    if Path(scanner_file).name != scanner_file:
+        return {
+            "error": f"Invalid adapter_file '{scanner_file}': must stay within community/{name}/"
+        }
     source_scanner = community_dir / scanner_file
     # Defense-in-depth: community manifests are semi-trusted, but a malicious
     # adapter_file like "../../../etc/foo.py" would copy from outside community/.
@@ -92,57 +174,72 @@ def hire(name: str) -> dict:
         source_resolved.relative_to(community_resolved)
     except ValueError:
         return {"error": f"Invalid adapter_file '{scanner_file}': must stay within community/{name}/"}
-    if not source_scanner.exists():
+    if not scanner_file.endswith(".py"):
+        return {"error": "Manifest adapter_file must name a Python file"}
+    if source_scanner.is_symlink() or not source_scanner.is_file():
         return {"error": f"Scanner file '{scanner_file}' not found in community/{name}/"}
-
-    # Check CLI dependencies — auto-install if possible
-    requirements = manifest.get("requirements", {})
-    missing_tools = []
-    for tool in requirements.get("cli_tools", []):
-        if not ensure_tool(tool):
-            missing_tools.append(tool)
-    if missing_tools:
-        return {"error": f"Missing required CLI tools: {', '.join(missing_tools)}"}
-
-    # Copy scanner to ~/.hivescanner/scanners/
-    SCANNERS_DIR.mkdir(parents=True, exist_ok=True)
+    # Validate state before dependency installation or filesystem changes.
+    try:
+        config = _load_config()
+    except StateFileError as exc:
+        return {"error": str(exc)}
+    if not isinstance(config.get("scanners", {}), dict):
+        return {"error": "config.json scanners must be an object"}
     dest = SCANNERS_DIR / f"{name}.py"
-    shutil.copy2(str(source_scanner), str(dest))
+    if dest.exists() and name in config.get("scanners", {}):
+        return {"error": f"Scanner '{name}' is already hired."}
 
-    # Save manifest
+    # Read a fired scanner's backup before modifying any installed files.
     teammate_dir = TEAMMATES_DIR / name
-    teammate_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(str(manifest_path), str(teammate_dir / "teammate.json"))
-
-    # Merge config template
-    config = _load_config()
-    config_template = manifest.get("config_template", {})
-
-    # Check for previous config backup (re-hire restores config)
     installed_path = teammate_dir / "installed.json"
+    previous_installed = None
     if installed_path.exists():
         try:
-            installed = json.loads(installed_path.read_text())
-            prev_config = installed.get("config_backup")
-            if prev_config:
-                config_template = prev_config
-        except (json.JSONDecodeError, OSError):
-            pass
+            previous_installed = load_json(installed_path, {}, dict)
+        except (StateFileError, OSError) as exc:
+            return {"error": f"Cannot restore scanner state: {exc}"}
+        prev_config = previous_installed.get("config_backup")
+        if isinstance(prev_config, dict):
+            config_template = prev_config
+    # Hiring never executes code immediately. Enabling is a separate explicit
+    # action (the setup wizard does this after configuration).
+    config_template = dict(config_template)
+    config_template["enabled"] = False
 
-    if "scanners" not in config:
-        config["scanners"] = {}
+    # Copy scanner to ~/.hivescanner/scanners/
+    SCANNERS_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        _atomic_copy(source_scanner, dest)
+
+        # Save manifest
+        teammate_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _atomic_copy(manifest_path, teammate_dir / "teammate.json")
+    except OSError as exc:
+        dest.unlink(missing_ok=True)
+        return {"error": f"Could not copy scanner files: {exc}"}
+
+    config.setdefault("scanners", {})
     if name not in config["scanners"]:
         config["scanners"][name] = config_template
-    _save_config(config)
-
-    # Save install state
-    installed_data = {"installed_at": _utc_now_z(), "manifest": manifest}
-    with open(installed_path, "w") as f:
-        json.dump(installed_data, f, indent=2)
+    try:
+        installed_data = {"installed_at": _utc_now_z(), "manifest": manifest}
+        atomic_write_json(installed_path, installed_data)
+        _save_config(config)
+    except (OSError, StateFileError, TypeError, ValueError) as exc:
+        dest.unlink(missing_ok=True)
+        try:
+            if previous_installed is None:
+                installed_path.unlink(missing_ok=True)
+            else:
+                atomic_write_json(installed_path, previous_installed)
+        except OSError:
+            pass
+        return {"error": f"Could not finish scanner installation: {exc}"}
 
     return {"status": "hired", "name": name, "display_name": manifest.get("display_name", name)}
 
 
+@_config_locked
 def fire(name: str) -> dict:
     """Remove a community scanner."""
     err = _validate_name(name)
@@ -156,48 +253,48 @@ def fire(name: str) -> dict:
         return {"error": f"Scanner '{name}' is not currently hired."}
 
     # Back up config before removal
-    config = _load_config()
+    try:
+        config = _load_config()
+    except StateFileError as exc:
+        return {"error": str(exc)}
+    if not isinstance(config.get("scanners", {}), dict):
+        return {"error": "config.json scanners must be an object"}
     scanner_config = config.get("scanners", {}).get(name)
 
     teammate_dir = TEAMMATES_DIR / name
-    teammate_dir.mkdir(parents=True, exist_ok=True)
+    teammate_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     installed_path = teammate_dir / "installed.json"
     installed_data = {"fired_at": _utc_now_z(), "config_backup": scanner_config}
-    with open(installed_path, "w") as f:
-        json.dump(installed_data, f, indent=2)
-
-    # Remove scanner file
-    scanner_path.unlink(missing_ok=True)
-
-    # Remove from config scanners
-    if name in config.get("scanners", {}):
-        del config["scanners"][name]
-        _save_config(config)
-
-    # Clear pollen for this source
-    if POLLEN_FILE.exists():
-        try:
-            hive = json.loads(POLLEN_FILE.read_text())
-            hive["pollen"] = [p for p in hive.get("pollen", []) if p.get("source") != name]
-            tmp = POLLEN_FILE.with_suffix(".tmp")
-            with open(tmp, "w") as f:
-                json.dump(hive, f, indent=2)
-            os.replace(str(tmp), str(POLLEN_FILE))
-        except (json.JSONDecodeError, OSError):
-            pass
+    try:
+        atomic_write_json(installed_path, installed_data)
+        # Commit the config change first. A crash can leave an inert adapter
+        # file behind, but never an enabled config pointing at a missing file.
+        if name in config.get("scanners", {}):
+            del config["scanners"][name]
+            _save_config(config)
+        scanner_path.unlink(missing_ok=True)
+    except (OSError, StateFileError, TypeError, ValueError) as exc:
+        return {"error": f"Could not fire scanner '{name}': {exc}"}
 
     return {"status": "fired", "name": name}
 
 
 def list_teammates() -> dict:
     """Show built-in + hired scanners."""
-    config = _load_config()
+    try:
+        config = _load_config()
+    except StateFileError as exc:
+        return {"error": str(exc)}
     scanners = config.get("scanners", {})
+    if not isinstance(scanners, dict):
+        return {"error": "config.json scanners must be an object"}
 
     result = {"builtin": [], "hired": [], "available": []}
 
     for name in sorted(BUILTIN_SCANNERS):
         sc = scanners.get(name, {})
+        if not isinstance(sc, dict):
+            return {"error": f"Scanner '{name}' config must be an object"}
         result["builtin"].append({
             "name": name,
             "enabled": sc.get("enabled", False),
@@ -211,6 +308,8 @@ def list_teammates() -> dict:
                 continue
             name = py_file.stem
             sc = scanners.get(name, {})
+            if not isinstance(sc, dict):
+                return {"error": f"Scanner '{name}' config must be an object"}
             result["hired"].append({
                 "name": name,
                 "enabled": sc.get("enabled", False),
@@ -230,12 +329,21 @@ def list_teammates() -> dict:
 
 def info(name: str) -> dict:
     """Show scanner details, config, manifest."""
-    config = _load_config()
-    scanner_config = config.get("scanners", {}).get(name)
+    err = _validate_name(name)
+    if err:
+        return {"error": err}
+    try:
+        config = _load_config()
+    except StateFileError as exc:
+        return {"error": str(exc)}
+    scanners = config.get("scanners", {})
+    if not isinstance(scanners, dict):
+        return {"error": "config.json scanners must be an object"}
+    scanner_config = scanners.get(name)
 
     result = {"name": name, "type": "builtin" if name in BUILTIN_SCANNERS else "community"}
 
-    if scanner_config:
+    if scanner_config is not None:
         result["config"] = scanner_config
 
     # Check for manifest
@@ -243,9 +351,9 @@ def info(name: str) -> dict:
     manifest_path = teammate_dir / "teammate.json"
     if manifest_path.exists():
         try:
-            result["manifest"] = json.loads(manifest_path.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
+            result["manifest"] = load_json(manifest_path, {}, dict)
+        except (StateFileError, OSError) as exc:
+            result["manifest_error"] = str(exc)
 
     # Check if scanner file exists
     if name in BUILTIN_SCANNERS:
@@ -256,21 +364,44 @@ def info(name: str) -> dict:
     return result
 
 
+@_config_locked
 def disable(name: str) -> dict:
     """Soft toggle — set enabled=false."""
-    config = _load_config()
-    if name not in config.get("scanners", {}):
+    err = _validate_name(name)
+    if err:
+        return {"error": err}
+    try:
+        config = _load_config()
+    except StateFileError as exc:
+        return {"error": str(exc)}
+    if not isinstance(config.get("scanners"), dict) or name not in config["scanners"]:
         return {"error": f"Scanner '{name}' not found in config."}
+    if not isinstance(config["scanners"][name], dict):
+        return {"error": f"Scanner '{name}' config must be an object."}
     config["scanners"][name]["enabled"] = False
     _save_config(config)
     return {"status": "disabled", "name": name}
 
 
+@_config_locked
 def enable(name: str) -> dict:
     """Soft toggle — set enabled=true."""
-    config = _load_config()
-    if name not in config.get("scanners", {}):
+    err = _validate_name(name)
+    if err:
+        return {"error": err}
+    try:
+        config = _load_config()
+    except StateFileError as exc:
+        return {"error": str(exc)}
+    if not isinstance(config.get("scanners"), dict) or name not in config["scanners"]:
         return {"error": f"Scanner '{name}' not found in config."}
+    if not isinstance(config["scanners"][name], dict):
+        return {"error": f"Scanner '{name}' config must be an object."}
+    installed_scanner = SCANNERS_DIR / f"{name}.py"
+    if name not in BUILTIN_SCANNERS and (
+        installed_scanner.is_symlink() or not installed_scanner.is_file()
+    ):
+        return {"error": f"Community scanner '{name}' is not installed."}
     config["scanners"][name]["enabled"] = True
     _save_config(config)
     return {"status": "enabled", "name": name}

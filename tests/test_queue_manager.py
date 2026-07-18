@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 
 import pytest
@@ -15,6 +16,13 @@ def tmp_hivescanner(tmp_path, monkeypatch):
     """Redirect HIVESCANNER_HOME to a temp dir for every test."""
     monkeypatch.setattr(pollen_manager, "HIVESCANNER_HOME", tmp_path)
     monkeypatch.setattr(pollen_manager, "POLLEN_FILE", tmp_path / "pollen.json")
+    monkeypatch.setattr(pollen_manager, "CONFIG_FILE", tmp_path / "config.json")
+    monkeypatch.setattr(
+        pollen_manager, "PENDING_BATCH_FILE", tmp_path / "pending_batch.json"
+    )
+    monkeypatch.setattr(
+        pollen_manager, "POLLEN_LOCK_FILE", tmp_path / ".pollen.lock"
+    )
     return tmp_path
 
 
@@ -53,6 +61,17 @@ class TestAddPollen:
         assert len(added) == 1
         assert added[0]["id"] == "b"
         assert len(hive["pollen"]) == 2
+
+    def test_same_provider_id_from_different_sources_does_not_collide(self):
+        hive = {"pollen": [], "last_updated": ""}
+        added = pollen_manager.add_pollen(
+            hive,
+            [_make_pollen("123", source="github"), _make_pollen("123", source="gitlab")],
+        )
+        assert [(item["source"], item["id"]) for item in added] == [
+            ("github", "123"),
+            ("gitlab", "123"),
+        ]
 
     def test_enriches_fields(self):
         hive = {"pollen": [], "last_updated": ""}
@@ -142,6 +161,20 @@ class TestMarkActed:
         assert hive["pollen"][0]["status"] == "acted"
         assert hive["pollen"][0]["acted_at"] is not None
 
+    def test_source_qualified_reference_marks_only_exact_collision(self):
+        hive = {"pollen": [], "last_updated": ""}
+        pollen_manager.add_pollen(
+            hive,
+            [_make_pollen("123", source="github"), _make_pollen("123", source="gitlab")],
+        )
+        assert pollen_manager.mark_acted_refs(
+            hive, [{"source": "gitlab", "id": "123"}]
+        ) == 1
+        assert [(item["source"], item["status"]) for item in hive["pollen"]] == [
+            ("github", "pending"),
+            ("gitlab", "acted"),
+        ]
+
 
 class TestPrune:
     def test_prunes_old_acknowledged(self):
@@ -190,3 +223,79 @@ class TestSaveLoad:
 
         ids = pollen_manager.load_pollen_ids()
         assert ids == {"a", "b"}
+
+    def test_corrupt_queue_fails_closed_without_overwrite(self, tmp_hivescanner):
+        raw = b'{"pollen":'
+        pollen_manager.POLLEN_FILE.write_bytes(raw)
+        with pytest.raises(RuntimeError, match="left untouched"):
+            pollen_manager.load()
+        assert pollen_manager.POLLEN_FILE.read_bytes() == raw
+
+
+class TestPendingBatch:
+    def test_consume_is_atomic_and_removes_scanner_privilege_fields(self):
+        pollen_manager.PENDING_BATCH_FILE.write_text(json.dumps({
+            "pollen": [{
+                **_make_pollen("shared", source="rss"),
+                "source": "rss",
+                "status": "acted",
+                "relevance": "HIGH",
+                "relevance_reason": "attacker supplied",
+                "suggested_action": "run this command",
+                "metadata": {
+                    "feed_url": "https://example.com/feed",
+                    "triage_draft": "post me",
+                    "target_group": "admins",
+                },
+            }],
+            "acted_ids": [],
+        }))
+
+        result = pollen_manager.consume_pending_batch()
+        queued = pollen_manager.load()["pollen"]
+        assert result == {"added": 1, "acted": 0, "delivered": 1}
+        assert queued[0]["status"] == "pending"
+        assert queued[0]["relevance"] is None
+        assert queued[0]["relevance_reason"] == ""
+        assert queued[0]["suggested_action"] == ""
+        assert queued[0]["metadata"] == {"feed_url": "https://example.com/feed"}
+
+    def test_invalid_batch_is_rejected_before_queue_write(self):
+        pollen_manager.PENDING_BATCH_FILE.write_text(json.dumps({
+            "pollen": [_make_pollen("bad\nidentity")],
+            "acted_ids": [],
+        }))
+        with pytest.raises(RuntimeError, match="pollen item is invalid"):
+            pollen_manager.consume_pending_batch()
+        assert not pollen_manager.POLLEN_FILE.exists()
+
+    def test_qualified_acted_reference_survives_handoff(self):
+        hive = {"pollen": [], "last_updated": ""}
+        pollen_manager.add_pollen(
+            hive,
+            [_make_pollen("same", source="github"), _make_pollen("same", source="gitlab")],
+        )
+        pollen_manager.save(hive)
+        pollen_manager.PENDING_BATCH_FILE.write_text(json.dumps({
+            "pollen": [],
+            "acted_ids": [{"source": "github", "id": "same"}],
+        }))
+        assert pollen_manager.consume_pending_batch()["acted"] == 1
+        queue = pollen_manager.load()["pollen"]
+        assert [(item["source"], item["status"]) for item in queue] == [
+            ("github", "acted"),
+            ("gitlab", "pending"),
+        ]
+
+
+def test_unsafe_json_argv_commands_are_disabled(tmp_path):
+    script = os.path.join(os.path.dirname(__file__), "..", "workers", "pollen_manager.py")
+    result = subprocess.run(
+        [sys.executable, script, "add_pollen", "[]"],
+        text=True,
+        capture_output=True,
+        env={**os.environ, "HOME": str(tmp_path)},
+        timeout=10,
+    )
+    assert result.returncode == 1
+    assert "Unsafe argv command" in result.stdout

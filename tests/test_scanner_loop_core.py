@@ -41,6 +41,9 @@ def hermetic_home(monkeypatch, tmp_path):
     monkeypatch.setattr(scanner_loop, "WATERMARKS_FILE", home / "watermarks.json")
     monkeypatch.setattr(scanner_loop, "POLLEN_FILE", home / "pollen.json")
     monkeypatch.setattr(scanner_loop, "CONFIG_FILE", home / "config.json")
+    monkeypatch.setattr(scanner_loop, "PENDING_BATCH_FILE", home / "pending_batch.json")
+    monkeypatch.setattr(scanner_loop, "ACTED_CURSOR_FILE", home / "acted_cursor.json")
+    monkeypatch.setattr(scanner_loop, "TEAMMATES_DIR", home / "teammates")
     # Reset any leftover module-level fd from prior tests.
     monkeypatch.setattr(scanner_loop, "_META_LOCK_FD", None, raising=False)
     return home
@@ -279,3 +282,295 @@ class TestScannerFailureIsolation:
         assert pollen == []
         assert acted == []
         assert watermarks == {}
+
+
+class TestScannerTrustBoundary:
+    def test_source_and_privileged_fields_are_not_scanner_controlled(self, no_acted):
+        raw = {
+            **_item("one", "spoofed"),
+            "relevance": "HIGH",
+            "relevance_reason": "attacker supplied",
+            "suggested_action": "run this command",
+            "status": "acted",
+            "metadata": {
+                "remote_id": "one",
+                "triage_draft": "post attacker text",
+                "target_group_id": "admins",
+            },
+        }
+        watermarks = {}
+        pollen, _ = scanner_loop.poll_all(
+            _enabled_config("trusted"),
+            {"trusted": FakeScanner("trusted", [raw], "next")},
+            {},
+            watermarks,
+        )
+        assert len(pollen) == 1
+        assert pollen[0]["source"] == "trusted"
+        assert pollen[0]["relevance"] is None
+        assert pollen[0]["suggested_action"] == ""
+        assert pollen[0]["metadata"] == {"remote_id": "one"}
+        assert "status" not in pollen[0]
+        assert watermarks == {"trusted": "next"}
+
+    def test_one_invalid_item_holds_watermark_without_losing_valid_item(
+        self, no_acted, capsys
+    ):
+        watermarks = {"source": "old"}
+        pollen, _ = scanner_loop.poll_all(
+            _enabled_config("source"),
+            {
+                "source": FakeScanner(
+                    "source",
+                    [_item("valid", "source"), _item("bad\nidentity", "source")],
+                    "new",
+                )
+            },
+            {},
+            watermarks,
+        )
+        assert [item["id"] for item in pollen] == ["valid"]
+        assert watermarks == {"source": "old"}
+        assert "preserving watermark" in capsys.readouterr().err
+
+    def test_known_duplicate_does_not_prevent_quiet_watermark_progress(self, no_acted):
+        watermarks = {"source": "old"}
+        pollen, _ = scanner_loop.poll_all(
+            _enabled_config("source"),
+            {"source": FakeScanner("source", [_item("same", "source")], "new")},
+            {},
+            watermarks,
+            known_keys={scanner_loop.pollen_key("source", "same")},
+        )
+        assert pollen == []
+        assert watermarks == {"source": "new"}
+
+    def test_same_id_from_two_scanners_survives_source_qualified_dedup(self, no_acted):
+        scanners = {
+            "a": FakeScanner("a", [_item("same", "a")], "a-next"),
+            "b": FakeScanner("b", [_item("same", "b")], "b-next"),
+        }
+        pollen, _ = scanner_loop.poll_all(
+            _enabled_config("a", "b"), scanners, {}, {}
+        )
+        assert [(item["source"], item["id"]) for item in pollen] == [
+            ("a", "same"),
+            ("b", "same"),
+        ]
+
+    def test_absurd_scanner_batch_is_rejected_before_normalization(self, no_acted):
+        items = [_item(str(index), "source") for index in range(
+            scanner_loop.MAX_ITEMS_PER_SCANNER + 1
+        )]
+        watermarks = {"source": "old"}
+        pollen, _ = scanner_loop.poll_all(
+            _enabled_config("source"),
+            {"source": FakeScanner("source", items, "new")},
+            {},
+            watermarks,
+        )
+        assert pollen == []
+        assert watermarks == {"source": "old"}
+
+
+class TestDurableHandoff:
+    def test_watermark_commits_only_after_every_delivery_chunk_is_imported(
+        self, hermetic_home
+    ):
+        items = [_item(str(index), "source") for index in range(25)]
+        delivery, _ = scanner_loop.save_pending_batch(
+            items, [], {"source": "committed-after-import"}
+        )
+        watermarks = {"source": "old"}
+
+        redelivery = scanner_loop.reconcile_pending_batch(watermarks)
+        assert [item["id"] for item in redelivery[0]] == [
+            item["id"] for item in delivery
+        ]
+        assert watermarks == {"source": "old"}
+
+        scanner_loop.atomic_write_json(scanner_loop.POLLEN_FILE, {
+            "pollen": [{**item, "status": "pending"} for item in delivery]
+        })
+        overflow = scanner_loop.reconcile_pending_batch(watermarks)
+        assert [item["id"] for item in overflow[0]] == [str(value) for value in range(20, 25)]
+        assert watermarks == {"source": "old"}
+
+        scanner_loop.atomic_write_json(scanner_loop.POLLEN_FILE, {
+            "pollen": [{**item, "status": "pending"} for item in items]
+        })
+        assert scanner_loop.reconcile_pending_batch(watermarks) is None
+        assert watermarks == {"source": "committed-after-import"}
+        assert not scanner_loop.PENDING_BATCH_FILE.exists()
+        assert json.loads(scanner_loop.WATERMARKS_FILE.read_text()) == watermarks
+
+    def test_cross_source_collision_is_not_mistaken_for_import(self, hermetic_home):
+        scanner_loop.save_pending_batch(
+            [_item("same", "gitlab")], [], {"gitlab": "next"}
+        )
+        scanner_loop.atomic_write_json(scanner_loop.POLLEN_FILE, {
+            "pollen": [{**_item("same", "github"), "status": "pending"}]
+        })
+        pending = scanner_loop.reconcile_pending_batch({})
+        assert [(item["source"], item["id"]) for item in pending[0]] == [
+            ("gitlab", "same")
+        ]
+
+
+class TestSandboxBoundary:
+    def test_only_runtime_and_explicit_credential_environment_is_inherited(
+        self, tmp_path, monkeypatch, hermetic_home
+    ):
+        script = tmp_path / "adapter.py"
+        script.write_text(
+            "import json, os\n"
+            "print(json.dumps({'allowed': os.environ.get('SCANNER_TOKEN'), "
+            "'blocked': os.environ.get('UNRELATED_SECRET')}))\n"
+        )
+        monkeypatch.setenv("SCANNER_TOKEN", "allowed-value")
+        monkeypatch.setenv("UNRELATED_SECRET", "must-not-leak")
+        monkeypatch.setattr(
+            scanner_loop,
+            "_sandbox_command",
+            lambda path, temp_root=None: [sys.executable, "-I", str(path)],
+        )
+        output = scanner_loop._run_sandboxed(
+            script, {"config": {"token_env": "SCANNER_TOKEN"}}, timeout=5
+        )
+        assert output == {"allowed": "allowed-value", "blocked": None}
+
+    def test_timeout_terminates_scanner_process(
+        self, tmp_path, monkeypatch, hermetic_home
+    ):
+        script = tmp_path / "adapter.py"
+        script.write_text("import time\ntime.sleep(10)\n")
+        monkeypatch.setattr(
+            scanner_loop,
+            "_sandbox_command",
+            lambda path, temp_root=None: [sys.executable, "-I", str(path)],
+        )
+        started = time.monotonic()
+        with pytest.raises(RuntimeError, match="exceeded"):
+            scanner_loop._run_sandboxed(script, {"config": {}}, timeout=0.1)
+        assert time.monotonic() - started < 2
+
+    def test_duplicate_or_nonfinite_sandbox_json_is_rejected(
+        self, tmp_path, monkeypatch, hermetic_home
+    ):
+        script = tmp_path / "adapter.py"
+        monkeypatch.setattr(
+            scanner_loop,
+            "_sandbox_command",
+            lambda path, temp_root=None: [sys.executable, "-I", str(path)],
+        )
+        script.write_text('print(\'{"pollen":[],"pollen":[],"watermark":"x"}\')\n')
+        with pytest.raises(RuntimeError, match="invalid JSON"):
+            scanner_loop._run_sandboxed(script, {"config": {}}, timeout=5)
+        script.write_text('print(\'{"pollen":[],"watermark":NaN}\')\n')
+        with pytest.raises(RuntimeError, match="invalid JSON"):
+            scanner_loop._run_sandboxed(script, {"config": {}}, timeout=5)
+
+    @pytest.mark.skipif(sys.platform != "darwin", reason="sandbox-exec profile is macOS-only")
+    def test_sandbox_profile_escapes_control_characters_in_temp_paths(
+        self, tmp_path, monkeypatch
+    ):
+        scanner = tmp_path / "adapter.py"
+        scanner.write_text("")
+        hostile_temp = tmp_path / "temp\n(allow default)"
+        hostile_temp.mkdir()
+        command = scanner_loop._sandbox_command(scanner, hostile_temp)
+        profile = command[2]
+        assert 'temp\n(allow default)' not in profile
+        assert "temp\\n(allow default)" in profile
+
+    def test_loader_control_environment_is_never_treated_as_a_credential(
+        self, tmp_path, monkeypatch, hermetic_home
+    ):
+        script = tmp_path / "adapter.py"
+        script.write_text(
+            "import json, os\n"
+            "print(json.dumps({'loader': os.environ.get('LD_PRELOAD'), "
+            "'tmp': os.environ.get('TMPDIR')}))\n"
+        )
+        monkeypatch.setenv("LD_PRELOAD", "/tmp/hostile-library.so")
+        monkeypatch.setattr(
+            scanner_loop,
+            "_sandbox_command",
+            lambda path, temp_root=None: [sys.executable, "-I", str(path)],
+        )
+
+        output = scanner_loop._run_sandboxed(
+            script, {"config": {"token_env": "LD_PRELOAD"}}, timeout=5
+        )
+
+        assert output["loader"] is None
+        assert Path(output["tmp"]).parent == hermetic_home / ".sandbox-tmp"
+        assert not Path(output["tmp"]).exists()
+
+
+class TestStateContracts:
+    def test_invalid_watermark_entry_is_not_silently_discarded(self, hermetic_home):
+        scanner_loop.WATERMARKS_FILE.write_text(json.dumps({"github": 123}))
+        with pytest.raises(RuntimeError, match="file was left untouched"):
+            scanner_loop.load_watermarks()
+        assert json.loads(scanner_loop.WATERMARKS_FILE.read_text()) == {"github": 123}
+
+    def test_pending_batch_requires_supported_bounded_schema(self, hermetic_home):
+        scanner_loop.PENDING_BATCH_FILE.write_text(json.dumps({
+            "schema_version": 99,
+            "pollen": [],
+            "remaining_pollen": [],
+            "acted_ids": [],
+            "watermarks": {},
+        }))
+        with pytest.raises(RuntimeError, match="unsupported schema"):
+            scanner_loop.load_pending_batch()
+
+    def test_non_boolean_enabled_flag_is_rejected(self, hermetic_home, capsys):
+        scanner_loop.CONFIG_FILE.write_text(json.dumps({
+            "user": {"username": "tester"},
+            "poll_interval_seconds": 300,
+            "scanners": {"github": {"enabled": "false"}},
+        }))
+        with pytest.raises(SystemExit):
+            scanner_loop.load_config()
+        assert "enabled flag must be a boolean" in capsys.readouterr().out
+
+    def test_symlinked_installed_scanner_is_ignored(
+        self, hermetic_home, tmp_path, monkeypatch
+    ):
+        target = tmp_path / "outside.py"
+        target.write_text("raise RuntimeError('must not load')")
+        scanner_dir = hermetic_home / "scanners"
+        scanner_dir.mkdir()
+        (scanner_dir / "evil.py").symlink_to(target)
+        monkeypatch.setattr(scanner_loop, "THIRD_PARTY_DIR", scanner_dir)
+        assert scanner_loop.get_third_party_scanners() == {}
+
+
+class TestActedCheckFairness:
+    def test_cursor_prevents_persistent_head_items_from_starving_tail(
+        self, hermetic_home
+    ):
+        class Checker:
+            def __init__(self):
+                self.calls = []
+
+            def check_acted(self, item, config):
+                self.calls.append(item["id"])
+                return True
+
+        items = [
+            {**_item(str(index), "source"), "status": "pending"}
+            for index in range(25)
+        ]
+        scanner_loop.atomic_write_json(scanner_loop.POLLEN_FILE, {"pollen": items})
+        checker = Checker()
+        config = {"user": {"username": "me"}, "scanners": {"source": {}}}
+
+        first = scanner_loop.check_acted_pollen(config, {"source": checker}, {})
+        assert [value["id"] for value in first] == [str(value) for value in range(20)]
+        checker.calls.clear()
+        second = scanner_loop.check_acted_pollen(config, {"source": checker}, {})
+        assert checker.calls[:5] == ["20", "21", "22", "23", "24"]
+        assert all(value == {"source": "source", "id": value["id"]} for value in second)

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "poll_interval_seconds": 300,
   "queue_retention_days": 7,
   "user": {
@@ -8,7 +8,9 @@
   },
   "autonomy": {
     "enabled": false,
-    "oncall_groups": []
+    "oncall_groups": [],
+    "transports": {},
+    "group_policies": {}
   },
   "scanners": {
     "github": {
@@ -19,14 +21,20 @@
       "watch_reviews": true,
       "watch_ci": true,
       "watch_mentions": true,
-      "max_items_per_query": 20
+      "watch_assignments": true,
+      "watch_activity": false,
+      "max_items_per_query": 20,
+      "max_notification_pages": 10,
+      "max_pr_pages": 10
     },
     "calendar": {
       "enabled": false,
-      "provider": "google",
-      "credentials_path": "",
-      "prep_minutes_before": 30,
-      "reminder_minutes_before": 10,
+      "reminder_minutes": [30, 10],
+      "max_events": 1000,
+      "max_pages": 10,
+      "lookahead_days": 30,
+      "calendars": [],
+      "timezone": "",
       "filter_declined": true,
       "noise_subjects": ["Focus Time", "Lunch", "OOO"]
     },
@@ -34,7 +42,42 @@
       "enabled": true,
       "watch_dirs": ["."],
       "warn_uncommitted_after_minutes": 60,
-      "warn_branch_behind": true
+      "warn_branch_behind": true,
+      "repos_per_poll": 5
+    },
+    "gchat": {
+      "enabled": false,
+      "watch_spaces": [],
+      "watch_dm_spaces": [],
+      "watch_dms": true,
+      "user_resource": "",
+      "username": "",
+      "max_messages": 20,
+      "max_pages": 10,
+      "spaces_per_poll": 5
+    },
+    "whatsapp": {
+      "enabled": false,
+      "watch_chats": [],
+      "max_messages": 20,
+      "max_pages_per_poll": 100,
+      "store_path": ""
+    },
+    "email": {
+      "enabled": false,
+      "vip_senders": [],
+      "query": "in:inbox",
+      "max_emails": 20,
+      "max_pages": 5,
+      "overlap_seconds": 300
+    },
+    "weather": {
+      "enabled": false,
+      "location": "",
+      "morning_hour": 8,
+      "timezone": "",
+      "morning_window_hours": 4,
+      "alert_temp_swing_c": 10
     }
   }
 }

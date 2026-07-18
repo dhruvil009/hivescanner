@@ -40,6 +40,7 @@ def community_dir(tmp_path, monkeypatch):
         "adapter_file": "adapter.py",
         "config_template": {"enabled": False, "feeds": []},
         "requirements": {"cli_tools": []},
+        "qpm_budget": 1,
     }))
 
     monkeypatch.setattr(scanner_manager, "_find_plugin_root", lambda: plugin_root)
@@ -81,6 +82,47 @@ class TestHire:
         assert "error" in result
         assert "must stay within" in result["error"]
         # Scanner file should NOT have been copied.
+        assert not (tmp_hivescanner / "scanners" / "testrss.py").exists()
+
+    @pytest.mark.parametrize(
+        ("change", "message"),
+        [
+            ({"qpm_budget": 0}, "qpm_budget"),
+            ({"version": "latest"}, "semantic version"),
+            ({"config_template": {"enabled": False, "token_env": "BAD-NAME"}}, "environment"),
+        ],
+    )
+    def test_hire_rejects_malformed_manifest_contracts(
+        self, tmp_hivescanner, community_dir, change, message
+    ):
+        manifest = json.loads((community_dir / "teammate.json").read_text())
+        manifest.update(change)
+        (community_dir / "teammate.json").write_text(json.dumps(manifest))
+        (tmp_hivescanner / "config.json").write_text(json.dumps({"scanners": {}}))
+        result = scanner_manager.hire("testrss")
+        assert message in result["error"]
+
+    def test_hire_rejects_symlinked_adapter(self, tmp_hivescanner, community_dir):
+        adapter = community_dir / "adapter.py"
+        real = community_dir / "real.py"
+        adapter.rename(real)
+        adapter.symlink_to(real)
+        (tmp_hivescanner / "config.json").write_text(json.dumps({"scanners": {}}))
+        result = scanner_manager.hire("testrss")
+        assert "error" in result
+        assert not (tmp_hivescanner / "scanners" / "testrss.py").exists()
+
+    def test_hire_rejects_cli_dependent_community_scanner(
+        self, tmp_hivescanner, community_dir
+    ):
+        manifest = json.loads((community_dir / "teammate.json").read_text())
+        manifest["requirements"]["cli_tools"] = ["git"]
+        (community_dir / "teammate.json").write_text(json.dumps(manifest))
+        (tmp_hivescanner / "config.json").write_text(json.dumps({"scanners": {}}))
+
+        result = scanner_manager.hire("testrss")
+
+        assert "cannot require CLI tools" in result["error"]
         assert not (tmp_hivescanner / "scanners" / "testrss.py").exists()
 
 

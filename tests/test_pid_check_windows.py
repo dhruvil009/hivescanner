@@ -7,7 +7,6 @@ to exercise each of the three branches: handle, access-denied, nope.
 
 from __future__ import annotations
 
-import ctypes
 import pathlib
 import sys
 from unittest.mock import MagicMock
